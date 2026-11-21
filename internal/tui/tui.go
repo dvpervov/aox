@@ -69,6 +69,7 @@ type model struct {
 	renamePane  string
 	returnHint  string
 	renameGhost bool
+	labeling    bool
 	input       textinput.Model
 	width       int
 	height      int
@@ -101,6 +102,7 @@ var (
 		state.Unknown: lipgloss.NewStyle().Faint(true),
 	}
 	helpStyle    = lipgloss.NewStyle().Faint(true)
+	labelStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#F780E2")).Bold(true)
 	dividerStyle = lipgloss.NewStyle().Faint(true)
 )
 
@@ -338,7 +340,16 @@ func (m model) updateRename(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.labeling {
+		m.labeling = false
+		if i := strings.Index(rowLabels, msg.String()); len(msg.String()) == 1 && i >= 0 && i < len(m.rows) {
+			m.cursor = i
+		}
+		return m, nil
+	}
 	switch msg.String() {
+	case "g":
+		m.labeling = len(m.rows) > 0
 	case "q", "ctrl+c":
 		return m, tea.Quit
 	case "up", "k":
@@ -369,7 +380,7 @@ func (m model) View() string {
 	if m.showPreview() {
 		listWidth = m.width * listPercent / 100
 	}
-	b.WriteString(helpStyle.Render(fmt.Sprintf("    %-*s", statusWidth, "status")+columns("agent", "pane", "title")) + "\n")
+	b.WriteString(helpStyle.Render(fmt.Sprintf("      %-*s", statusWidth, "status")+columns("agent", "pane", "title")) + "\n")
 	b.WriteString(dividerStyle.Render(strings.Repeat("─", listWidth)) + "\n")
 	if len(m.rows) == 0 {
 		b.WriteString("No agent sessions\n")
@@ -390,7 +401,7 @@ func (m model) View() string {
 		case selected:
 			line = line.Foreground(selectedFg)
 		}
-		b.WriteString(cursor + " " + line.Render(mark+" ") +
+		b.WriteString(labelStyle.Render(m.rowLabel(i)) + " " + cursor + " " + line.Render(mark+" ") +
 			stateStyles[st].Render(fmt.Sprintf("%-*s", statusWidth, stateLabel(st))) +
 			line.Render(columns(r.pane.Command, r.pane.Location(), r.title())) + "\n")
 	}
@@ -400,7 +411,7 @@ func (m model) View() string {
 	if m.err != nil {
 		b.WriteString("\n" + m.err.Error() + "\n")
 	}
-	footer := strings.Split(helpStyle.Render("enter: jump   esc: last session   r: rename   q: quit"+m.returnHint), "\n")
+	footer := strings.Split(helpStyle.Render("enter: jump   g: go to line   esc: last session   r: rename   q: quit"+m.returnHint), "\n")
 	left := strings.Split(strings.TrimSuffix(b.String(), "\n"), "\n")
 	if m.height == 0 {
 		return strings.Join(append(append(left, ""), footer...), "\n")
@@ -455,4 +466,13 @@ const (
 
 func columns(agent, pane, title string) string {
 	return fmt.Sprintf(columnGap+"%-6s"+columnGap+"%-16s"+columnGap+"%s", agent, pane, title)
+}
+
+const rowLabels = "123456789abcdefghijklmnopqrstuvwxyz"
+
+func (m model) rowLabel(i int) string {
+	if m.labeling && i < len(rowLabels) {
+		return rowLabels[i : i+1]
+	}
+	return " "
 }
