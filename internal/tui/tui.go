@@ -160,8 +160,12 @@ func rename(id, name string) tea.Cmd {
 }
 
 func switchTo(pane string) tea.Cmd {
+	return tmuxCmd(func() error { return tmux.SwitchTo(pane) })
+}
+
+func tmuxCmd(f func() error) tea.Cmd {
 	return func() tea.Msg {
-		if err := tmux.SwitchTo(pane); err != nil {
+		if err := f(); err != nil {
 			return errMsg{err}
 		}
 		return nil
@@ -236,6 +240,8 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.rows) > 0 {
 			return m, switchTo(m.rows[m.cursor].pane.ID)
 		}
+	case "esc":
+		return m, tmuxCmd(tmux.SwitchLast)
 	case "r":
 		if len(m.rows) > 0 && m.rows[m.cursor].session != nil {
 			m.renameID = m.rows[m.cursor].session.ID
@@ -274,6 +280,6 @@ func (m model) View() string {
 	if m.err != nil {
 		b.WriteString("\n" + m.err.Error() + "\n")
 	}
-	b.WriteString("\n" + helpStyle.Render("enter: jump  r: rename  q: quit") + "\n")
+	b.WriteString("\n" + helpStyle.Render("enter: jump  esc: back  r: rename  q: quit") + "\n")
 	return b.String()
 }

@@ -125,6 +125,10 @@ func ExecSession(name, command string) error {
 	return syscall.Exec(path, []string{"tmux", "new-session", "-A", "-s", name, command}, os.Environ())
 }
 
+func SwitchLast() error {
+	return exec.Command("tmux", "switch-client", "-l").Run()
+}
+
 func SessionOf(pane string) (string, error) {
 	out, err := exec.Command("tmux", "display-message", "-p", "-t", pane, "#{session_name}").Output()
 	return strings.TrimSpace(string(out)), err
