@@ -113,8 +113,8 @@ func SwitchTo(pane string) error {
 	return exec.Command("tmux", switchArgs(pane, ";")...).Run()
 }
 
-func BindSwitch(key, pane string) error {
-	return exec.Command("tmux", append([]string{"bind-key", key}, switchArgs(pane, `\;`)...)...).Run()
+func BindSwitch(table, key, pane string) error {
+	return exec.Command("tmux", append([]string{"bind-key", "-T", table, key}, switchArgs(pane, `\;`)...)...).Run()
 }
 
 func ExecSession(name, command string) error {
@@ -143,6 +143,6 @@ func SwitchToSession(name, command string) error {
 	return exec.Command("tmux", "switch-client", "-t", "="+name).Run()
 }
 
-func Unbind(key string) error {
-	return exec.Command("tmux", "unbind-key", key).Run()
+func Unbind(table, key string) error {
+	return exec.Command("tmux", "unbind-key", "-T", table, key).Run()
 }

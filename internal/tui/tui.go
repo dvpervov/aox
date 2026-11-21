@@ -62,8 +62,12 @@ type model struct {
 
 const (
 	pollInterval = time.Second
-	returnKey    = "a"
 )
+
+var returnKeys = []struct{ table, key string }{
+	{"prefix", "a"},
+	{"root", "M-a"},
+}
 
 var (
 	stateStyles = map[state.State]lipgloss.Style{
@@ -89,10 +93,12 @@ func Run() error {
 		return err
 	}
 	if pane := os.Getenv("TMUX_PANE"); pane != "" {
-		if err := tmux.BindSwitch(returnKey, pane); err != nil {
-			return err
+		for _, k := range returnKeys {
+			if err := tmux.BindSwitch(k.table, k.key, pane); err != nil {
+				return err
+			}
+			defer tmux.Unbind(k.table, k.key)
 		}
-		defer tmux.Unbind(returnKey)
 	}
 	p := tea.NewProgram(model{input: textinput.New()}, tea.WithAltScreen())
 	go func() {
