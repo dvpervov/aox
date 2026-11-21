@@ -272,8 +272,15 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				r.terminalState, r.activityTitle = codex.TitleStatus(r.pane.Title, activityTitles[r.pane.ID])
 			}
 		}
+		selected := m.selectedPane()
 		m.rows = msg
 		m.cursor = max(0, min(m.cursor, len(m.rows)-1))
+		for i, r := range m.rows {
+			if r.pane.ID == selected {
+				m.cursor = i
+				break
+			}
+		}
 		m.err = nil
 	case errMsg:
 		m.err = msg.err
