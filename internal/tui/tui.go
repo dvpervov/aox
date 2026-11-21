@@ -349,7 +349,7 @@ func (m model) View() string {
 	if m.showPreview() {
 		listWidth = m.width * listPercent / 100
 	}
-	b.WriteString(helpStyle.Render(fmt.Sprintf("    %-8s %-7s %-16s %s", "status", "agent", "pane", "title")) + "\n")
+	b.WriteString(helpStyle.Render(fmt.Sprintf("    %-*s", statusWidth, "status")+columns("agent", "pane", "title")) + "\n")
 	b.WriteString(dividerStyle.Render(strings.Repeat("─", listWidth)) + "\n")
 	if len(m.rows) == 0 {
 		b.WriteString("No agent sessions\n")
@@ -371,8 +371,8 @@ func (m model) View() string {
 			line = line.Foreground(selectedFg)
 		}
 		b.WriteString(cursor + " " + line.Render(mark+" ") +
-			stateStyles[st].Render(fmt.Sprintf("%-8s", stateLabel(st))) +
-			line.Render(fmt.Sprintf(" %-7s %-16s %s", r.pane.Command, r.pane.Location(), r.title())) + "\n")
+			stateStyles[st].Render(fmt.Sprintf("%-*s", statusWidth, stateLabel(st))) +
+			line.Render(columns(r.pane.Command, r.pane.Location(), r.title())) + "\n")
 	}
 	if m.renamePane != "" {
 		b.WriteString("\n" + m.input.View() + "\n" + helpStyle.Render("enter: save  esc: cancel") + "\n")
@@ -416,4 +416,13 @@ func stateLabel(st state.State) string {
 		return "?"
 	}
 	return string(st)
+}
+
+const (
+	columnGap   = "   "
+	statusWidth = 7
+)
+
+func columns(agent, pane, title string) string {
+	return fmt.Sprintf(columnGap+"%-6s"+columnGap+"%-16s"+columnGap+"%s", agent, pane, title)
 }
