@@ -18,7 +18,7 @@ With several agents running across tmux windows and panes, finding out which ses
 
 ```sh
 aox hooks install claude    # once; register Claude Code hooks in ~/.claude/settings.json
-aox                         # run the TUI in its own tmux window
+aox                         # run the TUI (outside tmux: starts or attaches tmux session "aox")
 aox hooks uninstall claude  # remove aox hooks
 ```
 

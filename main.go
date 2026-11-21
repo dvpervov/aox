@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/dvpervov/aox/internal/claude"
+	"github.com/dvpervov/aox/internal/tmux"
 	"github.com/dvpervov/aox/internal/tui"
 )
 
@@ -20,6 +21,13 @@ func main() {
 func run(args []string) error {
 	switch strings.Join(args, " ") {
 	case "":
+		if os.Getenv("TMUX") == "" {
+			exe, err := os.Executable()
+			if err != nil {
+				return err
+			}
+			return tmux.ExecSession("aox", "'"+exe+"'")
+		}
 		return tui.Run()
 	case "event claude":
 		return claude.HandleEvent(os.Stdin)

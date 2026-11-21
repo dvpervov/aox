@@ -2,8 +2,10 @@ package tmux
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 )
 
 type Pane struct {
@@ -55,6 +57,14 @@ func SwitchTo(pane string) error {
 
 func BindSwitch(key, pane string) error {
 	return exec.Command("tmux", append([]string{"bind-key", key}, switchArgs(pane, `\;`)...)...).Run()
+}
+
+func ExecSession(name, command string) error {
+	path, err := exec.LookPath("tmux")
+	if err != nil {
+		return err
+	}
+	return syscall.Exec(path, []string{"tmux", "new-session", "-A", "-s", name, command}, os.Environ())
 }
 
 func Unbind(key string) error {

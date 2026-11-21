@@ -57,8 +57,13 @@ const (
 )
 
 var (
-	waitingStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true)
-	helpStyle    = lipgloss.NewStyle().Faint(true)
+	stateStyles = map[state.State]lipgloss.Style{
+		state.Working: lipgloss.NewStyle().Foreground(lipgloss.Color("3")),
+		state.Waiting: lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true),
+		state.Idle:    lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
+		state.Unknown: lipgloss.NewStyle().Faint(true),
+	}
+	helpStyle = lipgloss.NewStyle().Faint(true)
 )
 
 func Run() error {
@@ -224,17 +229,20 @@ func (m model) View() string {
 		b.WriteString("No Claude sessions\n")
 	}
 	for i, r := range m.rows {
-		mark := " "
-		style := lipgloss.NewStyle()
-		if r.state() == state.Waiting {
-			mark = "●"
-			style = waitingStyle
-		}
+		st := r.state()
+		cursor := " "
 		if i == m.cursor {
-			style = style.Reverse(true)
+			cursor = ">"
 		}
-		line := fmt.Sprintf("%s %-8s %-7s %-16s %s", mark, r.state(), "claude", r.pane.Location(), r.title())
-		b.WriteString(style.Render(line) + "\n")
+		mark := " "
+		line := lipgloss.NewStyle()
+		if st == state.Waiting {
+			mark = "●"
+			line = stateStyles[state.Waiting]
+		}
+		b.WriteString(cursor + " " + line.Render(mark+" ") +
+			stateStyles[st].Render(fmt.Sprintf("%-8s", st)) +
+			line.Render(fmt.Sprintf(" %-7s %-16s %s", "claude", r.pane.Location(), r.title())) + "\n")
 	}
 	if m.renaming {
 		b.WriteString("\n" + m.input.View() + "\n")
