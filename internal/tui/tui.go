@@ -65,6 +65,7 @@ type model struct {
 	cursor      int
 	err         error
 	renamePane  string
+	renameGhost bool
 	input       textinput.Model
 	width       int
 	height      int
@@ -295,6 +296,21 @@ func (m model) updateRename(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		m.renamePane = ""
 		return m, nil
+	case "tab":
+		if m.input.Value() == "" {
+			m.renameGhost = false
+			m.input.SetValue(m.input.Placeholder)
+			m.input.CursorEnd()
+		}
+		return m, nil
+	}
+	if m.renameGhost {
+		m.renameGhost = false
+		switch msg.String() {
+		case "left", "right", "up", "down", "home", "end":
+			m.input.SetValue(m.input.Placeholder)
+			m.input.CursorEnd()
+		}
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
@@ -318,8 +334,9 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "r":
 		if len(m.rows) > 0 {
 			m.renamePane = m.rows[m.cursor].pane.ID
-			m.input.SetValue(m.rows[m.cursor].title())
-			m.input.CursorEnd()
+			m.input.Placeholder = m.rows[m.cursor].title()
+			m.input.SetValue("")
+			m.renameGhost = m.input.Placeholder != ""
 			return m, m.input.Focus()
 		}
 	}
@@ -352,7 +369,7 @@ func (m model) View() string {
 			line.Render(fmt.Sprintf(" %-7s %-16s %s", r.pane.Command, r.pane.Location(), r.title())) + "\n")
 	}
 	if m.renamePane != "" {
-		b.WriteString("\n" + m.input.View() + "\n")
+		b.WriteString("\n" + m.input.View() + "\n" + helpStyle.Render("enter: save  esc: cancel") + "\n")
 	}
 	if m.err != nil {
 		b.WriteString("\n" + m.err.Error() + "\n")
