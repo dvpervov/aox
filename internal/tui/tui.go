@@ -345,6 +345,12 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	var b strings.Builder
+	listWidth := m.width
+	if m.showPreview() {
+		listWidth = m.width * listPercent / 100
+	}
+	b.WriteString(helpStyle.Render(fmt.Sprintf("    %-8s %-7s %-16s %s", "status", "agent", "pane", "title")) + "\n")
+	b.WriteString(dividerStyle.Render(strings.Repeat("─", listWidth)) + "\n")
 	if len(m.rows) == 0 {
 		b.WriteString("No agent sessions\n")
 	}
@@ -378,7 +384,6 @@ func (m model) View() string {
 	if !m.showPreview() || m.height == 0 {
 		return b.String()
 	}
-	listWidth := m.width * listPercent / 100
 	previewWidth := m.width - listWidth - 1
 	var preview []string
 	if len(m.rows) > 0 {
