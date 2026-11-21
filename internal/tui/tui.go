@@ -285,7 +285,7 @@ func (m model) View() string {
 			line = line.Foreground(selectedFg)
 		}
 		b.WriteString(cursor + " " + line.Render(mark+" ") +
-			stateStyles[st].Render(fmt.Sprintf("%-8s", st)) +
+			stateStyles[st].Render(fmt.Sprintf("%-8s", stateLabel(st))) +
 			line.Render(fmt.Sprintf(" %-7s %-16s %s", r.pane.Command, r.pane.Location(), r.title())) + "\n")
 	}
 	if m.renameID != "" {
@@ -296,4 +296,11 @@ func (m model) View() string {
 	}
 	b.WriteString("\n" + helpStyle.Render("enter: jump  esc: back  r: rename  q: quit") + "\n")
 	return b.String()
+}
+
+func stateLabel(st state.State) string {
+	if st == state.Unknown {
+		return "?"
+	}
+	return string(st)
 }
