@@ -61,6 +61,11 @@ func handle(r io.Reader, agent string) error {
 		}
 		in.SessionID = agent + ":" + in.SessionID
 	}
+	unlock, err := state.Lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	own, err := state.Load(in.SessionID)
 	if err != nil {
 		return err
