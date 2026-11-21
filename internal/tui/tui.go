@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/fsnotify/fsnotify"
 
 	"github.com/dvpervov/aox/internal/codex"
@@ -46,21 +47,36 @@ func (r row) title() string {
 }
 
 type (
-	refreshMsg struct{}
-	pollMsg    struct{}
-	rowsMsg    []row
-	errMsg     struct{ err error }
+	refreshMsg     struct{}
+	pollMsg        struct{}
+	previewTickMsg struct{}
+	rowsMsg        []row
+	errMsg         struct{ err error }
+	previewMsg     struct {
+		pane  string
+		lines []string
+		loop  bool
+	}
 )
 
 type model struct {
-	rows     []row
-	cursor   int
-	err      error
-	renameID string
-	input    textinput.Model
+	rows        []row
+	cursor      int
+	err         error
+	renameID    string
+	input       textinput.Model
+	width       int
+	height      int
+	previewPane string
+	preview     []string
 }
 
-const pollInterval = time.Second
+const (
+	pollInterval    = time.Second
+	previewInterval = 200 * time.Millisecond
+	listPercent     = 40
+	minPreviewWidth = 100
+)
 
 var (
 	normalFg    = lipgloss.AdaptiveColor{Light: "235", Dark: "252"}
@@ -80,7 +96,8 @@ var (
 		state.Idle:    lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
 		state.Unknown: lipgloss.NewStyle().Faint(true),
 	}
-	helpStyle = lipgloss.NewStyle().Faint(true)
+	helpStyle    = lipgloss.NewStyle().Faint(true)
+	dividerStyle = lipgloss.NewStyle().Faint(true)
 )
 
 func Run() error {
@@ -182,8 +199,38 @@ func tmuxCmd(f func() error) tea.Cmd {
 	}
 }
 
+func capture(pane string, loop bool) tea.Cmd {
+	return func() tea.Msg {
+		msg := previewMsg{pane: pane, loop: loop}
+		if pane == "" {
+			return msg
+		}
+		out, err := tmux.Capture(pane)
+		if err != nil {
+			return msg
+		}
+		lines := strings.Split(out, "\n")
+		for len(lines) > 0 && strings.TrimSpace(ansi.Strip(lines[len(lines)-1])) == "" {
+			lines = lines[:len(lines)-1]
+		}
+		msg.lines = lines
+		return msg
+	}
+}
+
+func (m model) selectedPane() string {
+	if len(m.rows) == 0 {
+		return ""
+	}
+	return m.rows[m.cursor].pane.ID
+}
+
+func (m model) showPreview() bool {
+	return m.width >= minPreviewWidth
+}
+
 func (m model) Init() tea.Cmd {
-	return tea.Batch(load, poll())
+	return tea.Batch(load, poll(), capture("", true))
 }
 
 func poll() tea.Cmd {
@@ -191,7 +238,30 @@ func poll() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	prev := m.selectedPane()
+	next, cmd := m.update(msg)
+	if pane := next.(model).selectedPane(); pane != prev {
+		return next, tea.Batch(cmd, capture(pane, false))
+	}
+	return next, cmd
+}
+
+func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width, m.height = msg.Width, msg.Height
+	case previewTickMsg:
+		if !m.showPreview() {
+			return m, capture("", true)
+		}
+		return m, capture(m.selectedPane(), true)
+	case previewMsg:
+		if msg.pane == m.selectedPane() {
+			m.previewPane, m.preview = msg.pane, msg.lines
+		}
+		if msg.loop {
+			return m, tea.Tick(previewInterval, func(time.Time) tea.Msg { return previewTickMsg{} })
+		}
 	case refreshMsg:
 		return m, load
 	case pollMsg:
@@ -294,8 +364,29 @@ func (m model) View() string {
 	if m.err != nil {
 		b.WriteString("\n" + m.err.Error() + "\n")
 	}
-	b.WriteString("\n" + helpStyle.Render("enter: jump  esc: back  r: rename  q: quit") + "\n")
-	return b.String()
+	b.WriteString("\n" + helpStyle.Render("enter: jump  esc: back  r: rename  q: quit"))
+	if !m.showPreview() || m.height == 0 {
+		return b.String()
+	}
+	listWidth := m.width * listPercent / 100
+	previewWidth := m.width - listWidth - 1
+	var preview []string
+	if m.previewPane == m.selectedPane() {
+		preview = m.preview[max(0, len(m.preview)-m.height):]
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Top,
+		block(strings.Split(b.String(), "\n"), listWidth, m.height),
+		dividerStyle.Render(strings.TrimSuffix(strings.Repeat("│\n", m.height), "\n")),
+		block(preview, previewWidth, m.height),
+	)
+}
+
+func block(lines []string, width, height int) string {
+	lines = lines[:min(len(lines), height)]
+	for i, l := range lines {
+		lines[i] = ansi.Truncate(l, width, "") + "\x1b[0m"
+	}
+	return lipgloss.NewStyle().Width(width).Height(height).Render(strings.Join(lines, "\n"))
 }
 
 func stateLabel(st state.State) string {

@@ -125,6 +125,11 @@ func ExecSession(name, command string) error {
 	return syscall.Exec(path, []string{"tmux", "new-session", "-A", "-s", name, command}, os.Environ())
 }
 
+func Capture(pane string) (string, error) {
+	out, err := exec.Command("tmux", "capture-pane", "-p", "-e", "-t", pane).Output()
+	return string(out), err
+}
+
 func SwitchLast() error {
 	return exec.Command("tmux", "switch-client", "-l").Run()
 }
