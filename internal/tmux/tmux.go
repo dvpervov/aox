@@ -114,8 +114,32 @@ func SwitchTo(pane string) error {
 	return exec.Command("tmux", switchArgs(pane, ";")...).Run()
 }
 
-func BindSwitch(table, key, pane string) error {
-	return exec.Command("tmux", append([]string{"bind-key", "-T", table, key}, switchArgs(pane, `\;`)...)...).Run()
+func BindSwitch(table, key, pane string) (restore func(), err error) {
+	prev := binding(table, key)
+	if err := exec.Command("tmux", append([]string{"bind-key", "-T", table, key}, switchArgs(pane, `\;`)...)...).Run(); err != nil {
+		return nil, err
+	}
+	ours := binding(table, key)
+	return func() {
+		if binding(table, key) != ours {
+			return
+		}
+		if prev == "" {
+			exec.Command("tmux", "unbind-key", "-T", table, key).Run()
+			return
+		}
+		cmd := exec.Command("tmux", "source-file", "-")
+		cmd.Stdin = strings.NewReader(prev)
+		cmd.Run()
+	}, nil
+}
+
+func binding(table, key string) string {
+	out, err := exec.Command("tmux", "list-keys", "-T", table, key).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 func ExecSession(name, command string) error {
@@ -154,8 +178,4 @@ func SwitchToSession(name, command string) error {
 		}
 	}
 	return exec.Command("tmux", "switch-client", "-t", "="+name).Run()
-}
-
-func Unbind(table, key string) error {
-	return exec.Command("tmux", "unbind-key", "-T", table, key).Run()
 }

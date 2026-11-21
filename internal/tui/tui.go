@@ -3,7 +3,9 @@ package tui
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -116,13 +118,20 @@ func Run() error {
 	}
 	if pane := os.Getenv("TMUX_PANE"); pane != "" {
 		for _, k := range returnKeys {
-			if err := tmux.BindSwitch(k.table, k.key, pane); err != nil {
+			restore, err := tmux.BindSwitch(k.table, k.key, pane)
+			if err != nil {
 				return err
 			}
-			defer tmux.Unbind(k.table, k.key)
+			defer restore()
 		}
 	}
 	p := tea.NewProgram(model{input: textinput.New()}, tea.WithAltScreen())
+	hup := make(chan os.Signal, 1)
+	signal.Notify(hup, syscall.SIGHUP)
+	go func() {
+		<-hup
+		p.Quit()
+	}()
 	go func() {
 		for {
 			select {
