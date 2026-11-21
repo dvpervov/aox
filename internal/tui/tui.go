@@ -371,8 +371,15 @@ func (m model) View() string {
 	listWidth := m.width * listPercent / 100
 	previewWidth := m.width - listWidth - 1
 	var preview []string
-	if m.previewPane == m.selectedPane() {
-		preview = m.preview[max(0, len(m.preview)-m.height):]
+	if len(m.rows) > 0 {
+		r := m.rows[m.cursor]
+		preview = []string{
+			helpStyle.Render("preview · " + r.pane.Command + " · " + r.pane.Location()),
+			dividerStyle.Render(strings.Repeat("─", previewWidth)),
+		}
+		if body := m.height - len(preview); m.previewPane == r.pane.ID && body > 0 {
+			preview = append(preview, m.preview[max(0, len(m.preview)-body):]...)
+		}
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top,
 		block(strings.Split(b.String(), "\n"), listWidth, m.height),
