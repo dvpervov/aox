@@ -35,10 +35,11 @@ func (r row) state() state.State {
 }
 
 func (r row) title() string {
-	if r.session != nil {
-		if title := r.session.Title(); title != "" {
-			return title
-		}
+	if r.pane.Name != "" {
+		return r.pane.Name
+	}
+	if r.session != nil && r.session.Prompt != "" {
+		return r.session.Prompt
 	}
 	if r.pane.Command == state.Codex {
 		return codex.PaneTitle(r.pane.Title)
@@ -63,7 +64,7 @@ type model struct {
 	rows        []row
 	cursor      int
 	err         error
-	renameID    string
+	renamePane  string
 	input       textinput.Model
 	width       int
 	height      int
@@ -169,20 +170,12 @@ func load() tea.Msg {
 	return rowsMsg(rows)
 }
 
-func rename(id, name string) tea.Cmd {
+func rename(pane, name string) tea.Cmd {
 	return func() tea.Msg {
-		s, err := state.Load(id)
-		if err != nil {
+		if err := tmux.SetName(pane, strings.ReplaceAll(name, "\t", " ")); err != nil {
 			return errMsg{err}
 		}
-		if s == nil {
-			return nil
-		}
-		s.Name = name
-		if err := state.Save(s); err != nil {
-			return errMsg{err}
-		}
-		return nil
+		return load()
 	}
 }
 
@@ -285,7 +278,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		m.err = msg.err
 	case tea.KeyMsg:
-		if m.renameID != "" {
+		if m.renamePane != "" {
 			return m.updateRename(msg)
 		}
 		return m.updateList(msg)
@@ -296,11 +289,11 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) updateRename(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
-		id := m.renameID
-		m.renameID = ""
-		return m, rename(id, strings.TrimSpace(m.input.Value()))
+		pane := m.renamePane
+		m.renamePane = ""
+		return m, rename(pane, strings.TrimSpace(m.input.Value()))
 	case "esc":
-		m.renameID = ""
+		m.renamePane = ""
 		return m, nil
 	}
 	var cmd tea.Cmd
@@ -323,8 +316,8 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		return m, tmuxCmd(tmux.SwitchLast)
 	case "r":
-		if len(m.rows) > 0 && m.rows[m.cursor].session != nil {
-			m.renameID = m.rows[m.cursor].session.ID
+		if len(m.rows) > 0 {
+			m.renamePane = m.rows[m.cursor].pane.ID
 			m.input.SetValue(m.rows[m.cursor].title())
 			m.input.CursorEnd()
 			return m, m.input.Focus()
@@ -358,7 +351,7 @@ func (m model) View() string {
 			stateStyles[st].Render(fmt.Sprintf("%-8s", stateLabel(st))) +
 			line.Render(fmt.Sprintf(" %-7s %-16s %s", r.pane.Command, r.pane.Location(), r.title())) + "\n")
 	}
-	if m.renameID != "" {
+	if m.renamePane != "" {
 		b.WriteString("\n" + m.input.View() + "\n")
 	}
 	if m.err != nil {

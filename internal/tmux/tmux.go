@@ -16,6 +16,7 @@ type Pane struct {
 	Window  string
 	Index   string
 	Command string
+	Name    string
 	Title   string
 }
 
@@ -24,7 +25,7 @@ func (p Pane) Location() string {
 }
 
 const commandFormat = "#{pane_current_command}\t#{pane_tty}"
-const paneFormat = "#{pane_id}\t#{session_name}\t#{window_index}\t#{pane_index}\t" + commandFormat + "\t#{pane_title}"
+const paneFormat = "#{pane_id}\t#{session_name}\t#{window_index}\t#{pane_index}\t" + commandFormat + "\t#{@aox_name}\t#{pane_title}"
 
 func ListPanes() ([]Pane, error) {
 	out, err := exec.Command("tmux", "list-panes", "-a", "-F", paneFormat).Output()
@@ -33,11 +34,11 @@ func ListPanes() ([]Pane, error) {
 	}
 	var panes []Pane
 	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
-		f := strings.SplitN(line, "\t", 7)
-		if len(f) != 7 {
+		f := strings.SplitN(line, "\t", 8)
+		if len(f) != 8 {
 			continue
 		}
-		panes = append(panes, Pane{ID: f[0], Session: f[1], Window: f[2], Index: f[3], Command: paneCommand(f[4], f[5]), Title: f[6]})
+		panes = append(panes, Pane{ID: f[0], Session: f[1], Window: f[2], Index: f[3], Command: paneCommand(f[4], f[5]), Name: f[6], Title: f[7]})
 	}
 	return panes, nil
 }
@@ -128,6 +129,13 @@ func ExecSession(name, command string) error {
 func Capture(pane string) (string, error) {
 	out, err := exec.Command("tmux", "capture-pane", "-p", "-e", "-t", pane).Output()
 	return string(out), err
+}
+
+func SetName(pane, name string) error {
+	if name == "" {
+		return exec.Command("tmux", "set-option", "-p", "-u", "-t", pane, "@aox_name").Run()
+	}
+	return exec.Command("tmux", "set-option", "-p", "-t", pane, "@aox_name", name).Run()
 }
 
 func SwitchLast() error {

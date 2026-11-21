@@ -32,7 +32,6 @@ type Session struct {
 	Pane    string    `json:"pane"`
 	State   State     `json:"state"`
 	Prompt  string    `json:"prompt,omitempty"`
-	Name    string    `json:"name,omitempty"`
 	Updated time.Time `json:"updated"`
 }
 
@@ -41,13 +40,6 @@ func (s *Session) AgentName() string {
 		return Claude
 	}
 	return s.Agent
-}
-
-func (s *Session) Title() string {
-	if s.Name != "" {
-		return s.Name
-	}
-	return s.Prompt
 }
 
 func Dir() (string, error) {
