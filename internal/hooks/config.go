@@ -1,4 +1,4 @@
-package claude
+package hooks
 
 import (
 	"bytes"
@@ -13,29 +13,15 @@ import (
 	"github.com/dvpervov/aox/internal/state"
 )
 
-var hookEvents = []string{
-	"SessionStart",
-	"UserPromptSubmit",
-	"PermissionRequest",
-	"PreToolUse",
-	"Stop",
-	"SessionEnd",
-}
-
-const eventArgs = " event claude"
-
-func InstallHooks() error {
-	exe, err := os.Executable()
+func Install(path, agent string, events []string) error {
+	eventArgs := " event " + agent
+	command, err := hookCommand(eventArgs)
 	if err != nil {
 		return err
 	}
-	if exe, err = filepath.EvalSymlinks(exe); err != nil {
-		return err
-	}
-	command := "'" + exe + "'" + eventArgs
-	return editHooks(func(hooks map[string]any) error {
-		removeOwned(hooks)
-		for _, event := range hookEvents {
+	return editHooks(path, func(hooks map[string]any) error {
+		removeOwned(hooks, eventArgs, command)
+		for _, event := range events {
 			groups, ok := hooks[event].([]any)
 			if !ok && hooks[event] != nil {
 				return fmt.Errorf("hooks.%s is not an array", event)
@@ -48,29 +34,42 @@ func InstallHooks() error {
 	})
 }
 
-func UninstallHooks() error {
-	return editHooks(func(hooks map[string]any) error {
-		removeOwned(hooks)
+func Uninstall(path, agent string) error {
+	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	eventArgs := " event " + agent
+	command, _ := hookCommand(eventArgs)
+	return editHooks(path, func(hooks map[string]any) error {
+		removeOwned(hooks, eventArgs, command)
 		return nil
 	})
 }
 
-func settingsPath() (string, error) {
-	if dir := os.Getenv("CLAUDE_CONFIG_DIR"); dir != "" {
-		return filepath.Join(dir, "settings.json"), nil
+func ConfigPath(env, dir, file string) (string, error) {
+	if override := os.Getenv(env); override != "" {
+		return filepath.Join(override, file), nil
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(home, ".claude", "settings.json"), nil
+	return filepath.Join(home, dir, file), nil
 }
 
-func editHooks(edit func(map[string]any) error) error {
-	path, err := settingsPath()
+func hookCommand(eventArgs string) (string, error) {
+	exe, err := os.Executable()
 	if err != nil {
-		return err
+		return "", err
 	}
+	exe, err = filepath.EvalSymlinks(exe)
+	if err != nil {
+		return "", err
+	}
+	return "'" + strings.ReplaceAll(exe, "'", "'\\''") + "'" + eventArgs, nil
+}
+
+func editHooks(path string, edit func(map[string]any) error) error {
 	var settings map[string]any
 	perm := fs.FileMode(0o600)
 	data, err := os.ReadFile(path)
@@ -118,7 +117,7 @@ func editHooks(edit func(map[string]any) error) error {
 	return state.WriteFile(path, out.Bytes(), perm)
 }
 
-func removeOwned(hooks map[string]any) {
+func removeOwned(hooks map[string]any, eventArgs, command string) {
 	for event, v := range hooks {
 		groups, ok := v.([]any)
 		if !ok {
@@ -135,7 +134,7 @@ func removeOwned(hooks map[string]any) {
 			}
 			var keptInner []any
 			for _, h := range inner {
-				if isOwned(h) {
+				if isOwned(h, eventArgs, command) {
 					removed = true
 				} else {
 					keptInner = append(keptInner, h)
@@ -158,12 +157,12 @@ func removeOwned(hooks map[string]any) {
 	}
 }
 
-func isOwned(h any) bool {
+func isOwned(h any, eventArgs, command string) bool {
 	m, ok := h.(map[string]any)
-	if !ok {
+	if !ok || m["type"] != "command" {
 		return false
 	}
 	cmd, _ := m["command"].(string)
 	exe, found := strings.CutSuffix(cmd, eventArgs)
-	return found && filepath.Base(strings.Trim(exe, "'")) == "aox"
+	return found && (cmd == command || filepath.Base(strings.Trim(exe, "'")) == "aox")
 }

@@ -18,9 +18,13 @@ With several agents running across tmux windows and panes, finding out which ses
 
 ```sh
 aox hooks install claude    # once; register Claude Code hooks in ~/.claude/settings.json
+aox hooks install codex     # once; register Codex hooks in ~/.codex/hooks.json
 aox                         # run the TUI (outside tmux: starts or attaches tmux session "aox")
 aox hooks uninstall claude  # remove aox hooks
+aox hooks uninstall codex
 ```
+
+After installing Codex hooks, open Codex in tmux and review and trust the aox hooks with `/hooks`. The installer uses `$CODEX_HOME/hooks.json` when `CODEX_HOME` is set. If your Codex version uses the shared app-server daemon, launch with `codex --no-daemon` for live status. The shared daemon can supply the wrong pane to hooks, so aox only accepts Codex events launched from the reported pane. Discovered panes without hook state show `UNKNOWN`. See the [Codex hooks documentation](https://learn.chatgpt.com/docs/hooks) and [upstream pane attribution issue](https://github.com/openai/codex/issues/48500).
 
 In the TUI: `j`/`k` or arrows to move, `enter` to jump to the session's pane, `r` to rename, `q` to quit.
 

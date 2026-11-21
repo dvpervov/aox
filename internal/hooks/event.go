@@ -1,4 +1,4 @@
-package claude
+package hooks
 
 import (
 	"encoding/json"
@@ -11,16 +11,25 @@ import (
 	"github.com/dvpervov/aox/internal/tmux"
 )
 
-const Command = "claude"
-
 const titleLen = 60
+
+var SessionEvents = []string{
+	"SessionStart",
+	"UserPromptSubmit",
+	"PermissionRequest",
+	"PreToolUse",
+	"Stop",
+	"SessionEnd",
+}
 
 var transitions = map[string]state.State{
 	"SessionStart":      state.Unknown,
 	"UserPromptSubmit":  state.Working,
 	"PermissionRequest": state.Waiting,
 	"PreToolUse":        state.Working,
+	"PostToolUse":       state.Working,
 	"Stop":              state.Idle,
+	"Interrupt":         state.Idle,
 }
 
 type hookInput struct {
@@ -29,14 +38,14 @@ type hookInput struct {
 	Prompt    string `json:"prompt"`
 }
 
-func HandleEvent(r io.Reader) error {
-	if err := handle(r); err != nil {
+func HandleEvent(r io.Reader, agent string) error {
+	if err := handle(r, agent); err != nil {
 		return err
 	}
 	return state.Touch()
 }
 
-func handle(r io.Reader) error {
+func handle(r io.Reader, agent string) error {
 	var in hookInput
 	if err := json.NewDecoder(r).Decode(&in); err != nil {
 		return err
@@ -45,12 +54,19 @@ func handle(r io.Reader) error {
 	if pane == "" || in.SessionID == "" {
 		return nil
 	}
+	if agent == state.Codex {
+		// A shared Codex daemon can pass along a different client's TMUX_PANE.
+		if !tmux.InPane(pane) {
+			return nil
+		}
+		in.SessionID = agent + ":" + in.SessionID
+	}
 	own, err := state.Load(in.SessionID)
 	if err != nil {
 		return err
 	}
 	if in.Event == "SessionEnd" {
-		if own == nil {
+		if own == nil || own.Pane != pane {
 			return nil
 		}
 		return state.Remove(own.ID)
@@ -59,7 +75,7 @@ func handle(r io.Reader) error {
 	if !ok {
 		return nil
 	}
-	s, err := associate(in, pane, own)
+	s, err := associate(in, pane, agent, own)
 	if err != nil || s == nil {
 		return err
 	}
@@ -70,7 +86,7 @@ func handle(r io.Reader) error {
 	return state.Save(s)
 }
 
-func associate(in hookInput, pane string, own *state.Session) (*state.Session, error) {
+func associate(in hookInput, pane, agent string, own *state.Session) (*state.Session, error) {
 	if own != nil && own.Pane == pane {
 		return own, nil
 	}
@@ -80,14 +96,14 @@ func associate(in hookInput, pane string, own *state.Session) (*state.Session, e
 	}
 	var current []state.Session
 	for _, s := range sessions {
-		if s.Pane == pane && s.ID != in.SessionID {
+		if s.Pane == pane && s.AgentName() == agent && s.ID != in.SessionID {
 			current = append(current, s)
 		}
 	}
 	if in.Event != "SessionStart" && len(current) > 0 {
 		return nil, nil
 	}
-	if cmd, err := tmux.CurrentCommand(pane); err != nil || cmd != Command {
+	if cmd, err := tmux.CurrentCommand(pane); err != nil || cmd != agent {
 		return nil, nil
 	}
 	for _, s := range current {
@@ -96,7 +112,7 @@ func associate(in hookInput, pane string, own *state.Session) (*state.Session, e
 		}
 	}
 	if own == nil {
-		own = &state.Session{ID: in.SessionID}
+		own = &state.Session{ID: in.SessionID, Agent: agent}
 	}
 	own.Pane = pane
 	return own, nil

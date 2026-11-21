@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/dvpervov/aox/internal/claude"
+	"github.com/dvpervov/aox/internal/codex"
 	"github.com/dvpervov/aox/internal/tmux"
 	"github.com/dvpervov/aox/internal/tui"
 )
@@ -35,6 +36,13 @@ func run(args []string) error {
 		return claude.InstallHooks()
 	case "hooks uninstall claude":
 		return claude.UninstallHooks()
+	case "event codex":
+		return codex.HandleEvent(os.Stdin, os.Stdout)
+	case "hooks install codex":
+		return codex.InstallHooks()
+	case "hooks uninstall codex":
+		return codex.UninstallHooks()
 	}
-	return errors.New("usage: aox [event claude | hooks install claude | hooks uninstall claude]")
+	return errors.New("usage: aox [event <claude|codex> | hooks <install|uninstall> <claude|codex>]")
 }
+

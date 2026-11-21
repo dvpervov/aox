@@ -11,7 +11,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/dvpervov/aox/internal/claude"
 	"github.com/dvpervov/aox/internal/state"
 	"github.com/dvpervov/aox/internal/tmux"
 )
@@ -37,23 +36,22 @@ func (r row) title() string {
 
 type (
 	refreshMsg struct{}
-	reloadMsg  int
+	pollMsg    struct{}
 	rowsMsg    []row
 	errMsg     struct{ err error }
 )
 
 type model struct {
-	rows      []row
-	cursor    int
-	err       error
-	renaming  bool
-	input     textinput.Model
-	reloadGen int
+	rows     []row
+	cursor   int
+	err      error
+	renameID string
+	input    textinput.Model
 }
 
 const (
-	reloadDelay = time.Second
-	returnKey   = "a"
+	pollInterval = time.Second
+	returnKey    = "a"
 )
 
 var (
@@ -115,17 +113,19 @@ func load() tea.Msg {
 	if err != nil {
 		return errMsg{err}
 	}
-	byPane := map[string]*state.Session{}
+	type paneAgent struct{ pane, agent string }
+	byPane := map[paneAgent]*state.Session{}
 	for i := range sessions {
 		s := &sessions[i]
-		if cur, ok := byPane[s.Pane]; !ok || s.Updated.After(cur.Updated) {
-			byPane[s.Pane] = s
+		key := paneAgent{s.Pane, s.AgentName()}
+		if cur, ok := byPane[key]; !ok || s.Updated.After(cur.Updated) {
+			byPane[key] = s
 		}
 	}
 	var rows []row
 	for _, p := range panes {
-		if p.Command == claude.Command {
-			rows = append(rows, row{pane: p, session: byPane[p.ID]})
+		if p.Command == state.Claude || p.Command == state.Codex {
+			rows = append(rows, row{pane: p, session: byPane[paneAgent{p.ID, p.Command}]})
 		}
 	}
 	return rowsMsg(rows)
@@ -158,19 +158,19 @@ func switchTo(pane string) tea.Cmd {
 }
 
 func (m model) Init() tea.Cmd {
-	return load
+	return tea.Batch(load, poll())
+}
+
+func poll() tea.Cmd {
+	return tea.Tick(pollInterval, func(time.Time) tea.Msg { return pollMsg{} })
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case refreshMsg:
-		m.reloadGen++
-		gen := m.reloadGen
-		return m, tea.Batch(load, tea.Tick(reloadDelay, func(time.Time) tea.Msg { return reloadMsg(gen) }))
-	case reloadMsg:
-		if int(msg) == m.reloadGen {
-			return m, load
-		}
+		return m, load
+	case pollMsg:
+		return m, tea.Batch(load, poll())
 	case rowsMsg:
 		m.rows = msg
 		m.cursor = max(0, min(m.cursor, len(m.rows)-1))
@@ -178,7 +178,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errMsg:
 		m.err = msg.err
 	case tea.KeyMsg:
-		if m.renaming {
+		if m.renameID != "" {
 			return m.updateRename(msg)
 		}
 		return m.updateList(msg)
@@ -189,10 +189,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m model) updateRename(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
-		m.renaming = false
-		return m, rename(m.rows[m.cursor].session.ID, strings.TrimSpace(m.input.Value()))
+		id := m.renameID
+		m.renameID = ""
+		return m, rename(id, strings.TrimSpace(m.input.Value()))
 	case "esc":
-		m.renaming = false
+		m.renameID = ""
 		return m, nil
 	}
 	var cmd tea.Cmd
@@ -214,7 +215,7 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "r":
 		if len(m.rows) > 0 && m.rows[m.cursor].session != nil {
-			m.renaming = true
+			m.renameID = m.rows[m.cursor].session.ID
 			m.input.SetValue(m.rows[m.cursor].title())
 			m.input.CursorEnd()
 			return m, m.input.Focus()
@@ -226,7 +227,7 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m model) View() string {
 	var b strings.Builder
 	if len(m.rows) == 0 {
-		b.WriteString("No Claude sessions\n")
+		b.WriteString("No agent sessions\n")
 	}
 	for i, r := range m.rows {
 		st := r.state()
@@ -242,9 +243,9 @@ func (m model) View() string {
 		}
 		b.WriteString(cursor + " " + line.Render(mark+" ") +
 			stateStyles[st].Render(fmt.Sprintf("%-8s", st)) +
-			line.Render(fmt.Sprintf(" %-7s %-16s %s", "claude", r.pane.Location(), r.title())) + "\n")
+			line.Render(fmt.Sprintf(" %-7s %-16s %s", r.pane.Command, r.pane.Location(), r.title())) + "\n")
 	}
-	if m.renaming {
+	if m.renameID != "" {
 		b.WriteString("\n" + m.input.View() + "\n")
 	}
 	if m.err != nil {

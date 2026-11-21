@@ -21,13 +21,26 @@ const (
 	Unknown State = "UNKNOWN"
 )
 
+const (
+	Claude = "claude"
+	Codex  = "codex"
+)
+
 type Session struct {
 	ID      string    `json:"id"`
+	Agent   string    `json:"agent,omitempty"`
 	Pane    string    `json:"pane"`
 	State   State     `json:"state"`
 	Prompt  string    `json:"prompt,omitempty"`
 	Name    string    `json:"name,omitempty"`
 	Updated time.Time `json:"updated"`
+}
+
+func (s *Session) AgentName() string {
+	if s.Agent == "" {
+		return Claude
+	}
+	return s.Agent
 }
 
 func (s *Session) Title() string {
