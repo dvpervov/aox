@@ -22,14 +22,7 @@ func main() {
 func run(args []string) error {
 	switch strings.Join(args, " ") {
 	case "":
-		if os.Getenv("TMUX") == "" {
-			exe, err := os.Executable()
-			if err != nil {
-				return err
-			}
-			return tmux.ExecSession("aox", "'"+exe+"'")
-		}
-		return tui.Run()
+		return runTUI()
 	case "event claude":
 		return claude.HandleEvent(os.Stdin)
 	case "hooks install claude":
@@ -46,3 +39,23 @@ func run(args []string) error {
 	return errors.New("usage: aox [event <claude|codex> | hooks <install|uninstall> <claude|codex>]")
 }
 
+const tuiSession = "aox"
+
+func runTUI() error {
+	exe, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	command := "'" + exe + "'"
+	if os.Getenv("TMUX") == "" {
+		return tmux.ExecSession(tuiSession, command)
+	}
+	session, err := tmux.SessionOf(os.Getenv("TMUX_PANE"))
+	if err != nil {
+		return err
+	}
+	if session != tuiSession {
+		return tmux.SwitchToSession(tuiSession, command)
+	}
+	return tui.Run()
+}

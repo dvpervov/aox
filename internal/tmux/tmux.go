@@ -124,6 +124,20 @@ func ExecSession(name, command string) error {
 	return syscall.Exec(path, []string{"tmux", "new-session", "-A", "-s", name, command}, os.Environ())
 }
 
+func SessionOf(pane string) (string, error) {
+	out, err := exec.Command("tmux", "display-message", "-p", "-t", pane, "#{session_name}").Output()
+	return strings.TrimSpace(string(out)), err
+}
+
+func SwitchToSession(name, command string) error {
+	if exec.Command("tmux", "has-session", "-t", "="+name).Run() != nil {
+		if err := exec.Command("tmux", "new-session", "-d", "-s", name, command).Run(); err != nil {
+			return err
+		}
+	}
+	return exec.Command("tmux", "switch-client", "-t", "="+name).Run()
+}
+
 func Unbind(key string) error {
 	return exec.Command("tmux", "unbind-key", key).Run()
 }
