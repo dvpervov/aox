@@ -28,7 +28,7 @@ After installing Codex hooks, open Codex in tmux and review and trust the aox ho
 
 In the TUI: `j`/`k` or arrows to move, `enter` to jump to the session's pane, `esc` to go back to the previous tmux session, `r` to rename, `q` to quit.
 
-While the TUI runs, `prefix a` or `Alt+a` jumps back to it from any tmux pane. The bindings are set on the running tmux server when aox starts and removed when it quits; no tmux config changes are needed.
+While the TUI runs, `prefix a` jumps back to it from any tmux pane. The binding is set on the running tmux server when aox starts and removed when it quits; no tmux config changes are needed.
 
 ## Principles
 

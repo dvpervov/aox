@@ -88,7 +88,6 @@ var (
 
 var returnKeys = []struct{ table, key string }{
 	{"prefix", "a"},
-	{"root", "M-a"},
 }
 
 var (
