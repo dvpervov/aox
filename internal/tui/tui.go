@@ -60,8 +60,12 @@ type model struct {
 	input    textinput.Model
 }
 
-const (
-	pollInterval = time.Second
+const pollInterval = time.Second
+
+var (
+	normalFg    = lipgloss.AdaptiveColor{Light: "235", Dark: "252"}
+	selectedFg  = lipgloss.AdaptiveColor{Light: "#5A56E0", Dark: "#7571F9"}
+	cursorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#F780E2"))
 )
 
 var returnKeys = []struct{ table, key string }{
@@ -266,15 +270,19 @@ func (m model) View() string {
 	}
 	for i, r := range m.rows {
 		st := r.state()
+		selected := i == m.cursor
 		cursor := " "
-		if i == m.cursor {
-			cursor = ">"
+		if selected {
+			cursor = cursorStyle.Render(">")
 		}
 		mark := " "
-		line := lipgloss.NewStyle()
-		if st == state.Waiting {
+		line := lipgloss.NewStyle().Foreground(normalFg)
+		switch {
+		case st == state.Waiting:
 			mark = "●"
 			line = stateStyles[state.Waiting]
+		case selected:
+			line = line.Foreground(selectedFg)
 		}
 		b.WriteString(cursor + " " + line.Render(mark+" ") +
 			stateStyles[st].Render(fmt.Sprintf("%-8s", st)) +
