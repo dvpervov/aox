@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -20,6 +21,7 @@ import (
 )
 
 type row struct {
+	order         int
 	pane          tmux.Pane
 	session       *state.Session
 	terminalState state.State
@@ -70,6 +72,9 @@ type model struct {
 	returnHint  string
 	renameGhost bool
 	labeling    bool
+	sorting     bool
+	sortKey     string
+	sortDesc    bool
 	input       textinput.Model
 	width       int
 	height      int
@@ -180,7 +185,7 @@ func load() tea.Msg {
 	var rows []row
 	for _, p := range panes {
 		if p.Command == state.Claude || p.Command == state.Codex {
-			rows = append(rows, row{pane: p, session: byPane[paneAgent{p.ID, p.Command}]})
+			rows = append(rows, row{order: len(rows), pane: p, session: byPane[paneAgent{p.ID, p.Command}]})
 		}
 	}
 	return rowsMsg(rows)
@@ -290,13 +295,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		selected := m.selectedPane()
 		m.rows = msg
+		m.sortRows()
 		m.cursor = max(0, min(m.cursor, len(m.rows)-1))
-		for i, r := range m.rows {
-			if r.pane.ID == selected {
-				m.cursor = i
-				break
-			}
-		}
+		m.selectPane(selected)
 		m.err = nil
 	case errMsg:
 		m.err = msg.err
@@ -347,7 +348,22 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if m.sorting {
+		m.sorting = false
+		key := msg.String()
+		if !strings.Contains("sapt", key) || len(key) != 1 {
+			return m, nil
+		}
+		m.sortDesc = key == m.sortKey && !m.sortDesc
+		m.sortKey = key
+		selected := m.selectedPane()
+		m.sortRows()
+		m.selectPane(selected)
+		return m, nil
+	}
 	switch msg.String() {
+	case "s":
+		m.sorting = true
 	case "g":
 		m.labeling = len(m.rows) > 0
 	case "q", "ctrl+c":
@@ -380,7 +396,7 @@ func (m model) View() string {
 	if m.showPreview() {
 		listWidth = m.width * listPercent / 100
 	}
-	b.WriteString(helpStyle.Render(fmt.Sprintf("      %-*s", statusWidth, "status")+columns("agent", "pane", "title")) + "\n")
+	b.WriteString("      " + pad(m.columnTitle("s", "status"), statusWidth) + columns(m.columnTitle("a", "agent"), m.columnTitle("p", "pane"), m.columnTitle("t", "title")) + "\n")
 	b.WriteString(dividerStyle.Render(strings.Repeat("─", listWidth)) + "\n")
 	if len(m.rows) == 0 {
 		b.WriteString("No agent sessions\n")
@@ -411,7 +427,7 @@ func (m model) View() string {
 	if m.err != nil {
 		b.WriteString("\n" + m.err.Error() + "\n")
 	}
-	footer := strings.Split(helpStyle.Render("enter: jump   g: go to line   esc: last session   r: rename   q: quit"+m.returnHint), "\n")
+	footer := strings.Split(helpStyle.Render(m.helpLine()+m.returnHint), "\n")
 	left := strings.Split(strings.TrimSuffix(b.String(), "\n"), "\n")
 	if m.height == 0 {
 		return strings.Join(append(append(left, ""), footer...), "\n")
@@ -461,11 +477,17 @@ func stateLabel(st state.State) string {
 
 const (
 	columnGap   = "   "
-	statusWidth = 7
+	statusWidth = 8
+	agentWidth  = 7
+	paneWidth   = 16
 )
 
 func columns(agent, pane, title string) string {
-	return fmt.Sprintf(columnGap+"%-6s"+columnGap+"%-16s"+columnGap+"%s", agent, pane, title)
+	return columnGap + pad(agent, agentWidth) + columnGap + pad(pane, paneWidth) + columnGap + title
+}
+
+func pad(s string, width int) string {
+	return s + strings.Repeat(" ", max(0, width-ansi.StringWidth(s)))
 }
 
 const rowLabels = "123456789abcdefghijklmnopqrstuvwxyz"
@@ -475,4 +497,60 @@ func (m model) rowLabel(i int) string {
 		return rowLabels[i : i+1]
 	}
 	return " "
+}
+
+var statusRank = map[state.State]int{state.Waiting: 0, state.Working: 1, state.Idle: 2, state.Unknown: 3}
+
+func (r row) sortValue(key string) string {
+	switch key {
+	case "s":
+		return fmt.Sprint(statusRank[r.state()])
+	case "a":
+		return r.pane.Command
+	case "p":
+		return r.pane.Location()
+	case "t":
+		return strings.ToLower(r.title())
+	}
+	return ""
+}
+
+func (m *model) sortRows() {
+	sort.SliceStable(m.rows, func(i, j int) bool {
+		a, b := m.rows[i].sortValue(m.sortKey), m.rows[j].sortValue(m.sortKey)
+		if a != b {
+			return (a < b) != m.sortDesc
+		}
+		return m.rows[i].order < m.rows[j].order
+	})
+}
+
+func (m *model) selectPane(pane string) {
+	for i, r := range m.rows {
+		if r.pane.ID == pane {
+			m.cursor = i
+			return
+		}
+	}
+}
+
+func (m model) columnTitle(key, name string) string {
+	switch {
+	case key != m.sortKey:
+	case m.sortDesc:
+		name += " ↑"
+	default:
+		name += " ↓"
+	}
+	if m.sorting {
+		return labelStyle.Render(name[:1]) + helpStyle.Render(name[1:])
+	}
+	return helpStyle.Render(name)
+}
+
+func (m model) helpLine() string {
+	if m.sorting {
+		return "sort by:   s: status   a: agent   p: pane   t: title"
+	}
+	return "enter: jump   g: go to line   s: sort   esc: last session   r: rename   q: quit"
 }
