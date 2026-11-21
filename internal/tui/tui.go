@@ -67,6 +67,7 @@ type model struct {
 	cursor      int
 	err         error
 	renamePane  string
+	returnHint  string
 	renameGhost bool
 	input       textinput.Model
 	width       int
@@ -125,7 +126,11 @@ func Run() error {
 			defer restore()
 		}
 	}
-	p := tea.NewProgram(model{input: textinput.New()}, tea.WithAltScreen())
+	var returnHint string
+	if prefix := tmux.Prefix(); prefix != "" && os.Getenv("TMUX_PANE") != "" {
+		returnHint = "\n" + prefix + " a: open aox from any pane"
+	}
+	p := tea.NewProgram(model{input: textinput.New(), returnHint: returnHint}, tea.WithAltScreen())
 	hup := make(chan os.Signal, 1)
 	signal.Notify(hup, syscall.SIGHUP)
 	go func() {
@@ -390,14 +395,24 @@ func (m model) View() string {
 			line.Render(columns(r.pane.Command, r.pane.Location(), r.title())) + "\n")
 	}
 	if m.renamePane != "" {
-		b.WriteString("\n" + m.input.View() + "\n" + helpStyle.Render("enter: save  esc: cancel") + "\n")
+		b.WriteString("\n" + m.input.View() + "\n" + helpStyle.Render("enter: save   esc: cancel") + "\n")
 	}
 	if m.err != nil {
 		b.WriteString("\n" + m.err.Error() + "\n")
 	}
-	b.WriteString("\n" + helpStyle.Render("enter: jump  esc: back  r: rename  q: quit"))
-	if !m.showPreview() || m.height == 0 {
-		return b.String()
+	footer := strings.Split(helpStyle.Render("enter: jump   esc: last session   r: rename   q: quit"+m.returnHint), "\n")
+	left := strings.Split(strings.TrimSuffix(b.String(), "\n"), "\n")
+	if m.height == 0 {
+		return strings.Join(append(append(left, ""), footer...), "\n")
+	}
+	bodyHeight := max(0, m.height-len(footer))
+	left = left[:min(len(left), bodyHeight)]
+	for len(left) < bodyHeight {
+		left = append(left, "")
+	}
+	left = append(left, footer...)
+	if !m.showPreview() {
+		return strings.Join(left, "\n")
 	}
 	previewWidth := m.width - listWidth - 1
 	var preview []string
@@ -412,7 +427,7 @@ func (m model) View() string {
 		}
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Top,
-		block(strings.Split(b.String(), "\n"), listWidth, m.height),
+		block(left, listWidth, m.height),
 		dividerStyle.Render(strings.TrimSuffix(strings.Repeat("│\n", m.height), "\n")),
 		block(preview, previewWidth, m.height),
 	)

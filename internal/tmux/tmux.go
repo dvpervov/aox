@@ -134,6 +134,14 @@ func BindSwitch(table, key, pane string) (restore func(), err error) {
 	}, nil
 }
 
+func Prefix() string {
+	out, err := exec.Command("tmux", "show-options", "-gv", "prefix").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.NewReplacer("C-", "ctrl+", "M-", "alt+", "S-", "shift+").Replace(strings.TrimSpace(string(out)))
+}
+
 func binding(table, key string) string {
 	out, err := exec.Command("tmux", "list-keys", "-T", table, key).Output()
 	if err != nil {
