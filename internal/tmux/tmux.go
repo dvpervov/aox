@@ -16,6 +16,7 @@ type Pane struct {
 	Window  string
 	Index   string
 	Command string
+	Title   string
 }
 
 func (p Pane) Location() string {
@@ -23,7 +24,7 @@ func (p Pane) Location() string {
 }
 
 const commandFormat = "#{pane_current_command}\t#{pane_tty}"
-const paneFormat = "#{pane_id}\t#{session_name}\t#{window_index}\t#{pane_index}\t" + commandFormat
+const paneFormat = "#{pane_id}\t#{session_name}\t#{window_index}\t#{pane_index}\t" + commandFormat + "\t#{pane_title}"
 
 func ListPanes() ([]Pane, error) {
 	out, err := exec.Command("tmux", "list-panes", "-a", "-F", paneFormat).Output()
@@ -31,12 +32,12 @@ func ListPanes() ([]Pane, error) {
 		return nil, err
 	}
 	var panes []Pane
-	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
-		f := strings.Split(line, "\t")
-		if len(f) != 6 {
+	for _, line := range strings.Split(strings.TrimRight(string(out), "\n"), "\n") {
+		f := strings.SplitN(line, "\t", 7)
+		if len(f) != 7 {
 			continue
 		}
-		panes = append(panes, Pane{ID: f[0], Session: f[1], Window: f[2], Index: f[3], Command: paneCommand(f[4], f[5])})
+		panes = append(panes, Pane{ID: f[0], Session: f[1], Window: f[2], Index: f[3], Command: paneCommand(f[4], f[5]), Title: f[6]})
 	}
 	return panes, nil
 }

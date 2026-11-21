@@ -24,7 +24,7 @@ aox hooks uninstall claude  # remove aox hooks
 aox hooks uninstall codex
 ```
 
-After installing Codex hooks, open Codex in tmux and review and trust the aox hooks with `/hooks`. The installer uses `$CODEX_HOME/hooks.json` when `CODEX_HOME` is set. If your Codex version uses the shared app-server daemon, launch with `codex --no-daemon` for live status. The shared daemon can supply the wrong pane to hooks, so aox only accepts Codex events launched from the reported pane. Discovered panes without hook state show `UNKNOWN`. See the [Codex hooks documentation](https://learn.chatgpt.com/docs/hooks) and [upstream pane attribution issue](https://github.com/openai/codex/issues/48500).
+After installing Codex hooks, open Codex in tmux and review and trust the aox hooks with `/hooks`. The installer uses `$CODEX_HOME/hooks.json` when `CODEX_HOME` is set. If your Codex version uses the shared app-server daemon, launch with `codex --no-daemon` to get hook-based status and prompt titles. The shared daemon can supply the wrong pane to hooks, so aox only accepts Codex events launched from the reported pane. Without hook state, aox reads Codex's terminal title activity markers and shows `UNKNOWN` until it sees a recognizable status. When there's no saved session title, aox displays the Codex terminal title with activity markers removed. See the [Codex hooks documentation](https://learn.chatgpt.com/docs/hooks) and [upstream pane attribution issue](https://github.com/openai/codex/issues/48500).
 
 In the TUI: `j`/`k` or arrows to move, `enter` to jump to the session's pane, `r` to rename, `q` to quit.
 

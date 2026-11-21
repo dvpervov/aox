@@ -11,27 +11,38 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/fsnotify/fsnotify"
 
+	"github.com/dvpervov/aox/internal/codex"
 	"github.com/dvpervov/aox/internal/state"
 	"github.com/dvpervov/aox/internal/tmux"
 )
 
 type row struct {
-	pane    tmux.Pane
-	session *state.Session
+	pane          tmux.Pane
+	session       *state.Session
+	terminalState state.State
+	activityTitle string
 }
 
 func (r row) state() state.State {
-	if r.session == nil {
-		return state.Unknown
+	if r.session != nil && r.session.State != state.Unknown {
+		return r.session.State
 	}
-	return r.session.State
+	if r.pane.Command == state.Codex && r.terminalState != "" {
+		return r.terminalState
+	}
+	return state.Unknown
 }
 
 func (r row) title() string {
-	if r.session == nil {
-		return ""
+	if r.session != nil {
+		if title := r.session.Title(); title != "" {
+			return title
+		}
 	}
-	return r.session.Title()
+	if r.pane.Command == state.Codex {
+		return codex.PaneTitle(r.pane.Title)
+	}
+	return ""
 }
 
 type (
@@ -172,6 +183,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case pollMsg:
 		return m, tea.Batch(load, poll())
 	case rowsMsg:
+		activityTitles := make(map[string]string, len(m.rows))
+		for _, r := range m.rows {
+			if r.activityTitle != "" {
+				activityTitles[r.pane.ID] = r.activityTitle
+			}
+		}
+		for i := range msg {
+			r := &msg[i]
+			if r.pane.Command == state.Codex {
+				r.terminalState, r.activityTitle = codex.TitleStatus(r.pane.Title, activityTitles[r.pane.ID])
+			}
+		}
 		m.rows = msg
 		m.cursor = max(0, min(m.cursor, len(m.rows)-1))
 		m.err = nil
