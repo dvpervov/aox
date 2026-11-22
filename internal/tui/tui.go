@@ -657,6 +657,8 @@ const agentsSession = "aox-agents"
 
 var launchKeys = map[string]string{"l": state.Claude, "o": state.Codex}
 
+var launchCommands = map[string]string{state.Claude: "claude", state.Codex: "codex --no-daemon"}
+
 func launch(agent, dir, name string) tea.Cmd {
 	return func() tea.Msg {
 		path, err := expandHome(dir)
@@ -666,10 +668,10 @@ func launch(agent, dir, name string) tea.Cmd {
 		if fi, err := os.Stat(path); err != nil || !fi.IsDir() {
 			return errMsg{fmt.Errorf("not a directory: %s", dir)}
 		}
-		command := agent
+		command := launchCommands[agent]
 		if self := os.Getenv("TMUX_PANE"); self != "" {
 			// Job control gives the agent its own process group, so tmux reports it as the pane command.
-			command = "set -m; " + agent + `; [ "$(tmux display-message -p '#{session_attached}')" -gt 0 ] && tmux switch-client -t ` + self +
+			command = "set -m; " + launchCommands[agent] + `; [ "$(tmux display-message -p '#{session_attached}')" -gt 0 ] && tmux switch-client -t ` + self +
 				` \; select-window -t ` + self + ` \; select-pane -t ` + self
 		}
 		pane, err := tmux.NewWindow(agentsSession, path, command)
