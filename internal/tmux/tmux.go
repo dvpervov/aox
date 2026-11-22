@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
 
 type Pane struct {
@@ -281,4 +282,16 @@ func SetAttention(text string) error {
 		run("refresh-client", "-S", "-t", tty)
 	}
 	return nil
+}
+
+func ServerStart() (time.Time, error) {
+	out, err := run("display-message", "-p", "#{start_time}")
+	if err != nil {
+		return time.Time{}, err
+	}
+	sec, err := strconv.ParseInt(out, 10, 64)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return time.Unix(sec, 0), nil
 }

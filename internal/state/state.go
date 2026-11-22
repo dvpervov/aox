@@ -174,6 +174,26 @@ func Lock() (unlock func(), err error) {
 	return func() { f.Close() }, nil
 }
 
+func Prune(keep func(Session) bool) error {
+	unlock, err := Lock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	sessions, err := List()
+	if err != nil {
+		return err
+	}
+	for _, s := range sessions {
+		if !keep(s) {
+			if err := Remove(s.ID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func Touch() error {
 	dir, err := Dir()
 	if err != nil {

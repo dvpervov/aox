@@ -186,6 +186,9 @@ func load() tea.Msg {
 	if err != nil {
 		return errMsg{err}
 	}
+	if err := pruneSessions(panes); err != nil {
+		return errMsg{err}
+	}
 	sessions, err := state.List()
 	if err != nil {
 		return errMsg{err}
@@ -759,4 +762,18 @@ func attentionText(rows []row) string {
 		return ""
 	}
 	return fmt.Sprintf(" #[fg=red,bold]● %d waiting#[default]", n)
+}
+
+func pruneSessions(panes []tmux.Pane) error {
+	start, err := tmux.ServerStart()
+	if err != nil {
+		return err
+	}
+	live := make(map[string]bool, len(panes))
+	for _, p := range panes {
+		live[p.ID] = true
+	}
+	return state.Prune(func(s state.Session) bool {
+		return live[s.Pane] && !s.Updated.Before(start)
+	})
 }
