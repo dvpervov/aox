@@ -2,6 +2,8 @@
 
 See all your coding agents — Claude Code and Codex — running in tmux, in one place: what each is working on, which ones are busy, and which are waiting for you. Jump to any of them with one key.
 
+Built for terminal-first developers: it lives in tmux next to your agents, editor and shell, and never asks you to leave the keyboard.
+
 ```
       status    agent     pane               title
 ──────────────────────────────────────────────────────────────
