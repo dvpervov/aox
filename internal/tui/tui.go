@@ -67,25 +67,27 @@ type (
 )
 
 type model struct {
-	rows        []row
-	cursor      int
-	err         error
-	renamePane  string
-	returnHint  string
-	renameGhost bool
-	labeling    bool
-	sorting     bool
-	choosing    bool
-	showHelp    bool
-	launchAgent string
-	pendingPane string
-	sortKey     string
-	sortDesc    bool
-	input       textinput.Model
-	width       int
-	height      int
-	previewPane string
-	preview     []string
+	rows         []row
+	cursor       int
+	err          error
+	renamePane   string
+	returnHint   string
+	renameGhost  bool
+	labeling     bool
+	sorting      bool
+	choosing     bool
+	showHelp     bool
+	launchAgent  string
+	launchDir    string
+	launchNaming bool
+	pendingPane  string
+	sortKey      string
+	sortDesc     bool
+	input        textinput.Model
+	width        int
+	height       int
+	previewPane  string
+	preview      []string
 }
 
 const (
@@ -361,16 +363,25 @@ func (m model) updateRename(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m model) updateLaunch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "enter":
-		agent := m.launchAgent
-		m.launchAgent = ""
-		return m, launch(agent, strings.TrimSpace(m.input.Value()))
+		if !m.launchNaming {
+			m.launchNaming = true
+			m.launchDir = strings.TrimSpace(m.input.Value())
+			m.input.ShowSuggestions = false
+			m.input.SetValue("")
+			return m, nil
+		}
+		agent, dir, name := m.launchAgent, m.launchDir, strings.TrimSpace(m.input.Value())
+		m.launchAgent, m.launchNaming = "", false
+		return m, launch(agent, dir, name)
 	case "esc":
-		m.launchAgent = ""
+		m.launchAgent, m.launchNaming = "", false
 		return m, nil
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
-	m.input.SetSuggestions(dirSuggestions(m.input.Value()))
+	if !m.launchNaming {
+		m.input.SetSuggestions(dirSuggestions(m.input.Value()))
+	}
 	return m, cmd
 }
 
@@ -478,8 +489,11 @@ func (m model) View() string {
 	if m.renamePane != "" {
 		b.WriteString("\n" + m.input.View() + "\n" + helpStyle.Render("enter: save   esc: cancel") + "\n")
 	}
-	if m.launchAgent != "" {
-		b.WriteString("\n" + helpStyle.Render("new "+m.launchAgent+" in:") + "\n" + m.input.View() + "\n" + helpStyle.Render("enter: start   esc: cancel") + "\n")
+	switch {
+	case m.launchNaming:
+		b.WriteString("\n" + helpStyle.Render("name (optional):") + "\n" + m.input.View() + "\n" + helpStyle.Render("enter: start   esc: cancel") + "\n")
+	case m.launchAgent != "":
+		b.WriteString("\n" + helpStyle.Render("new "+m.launchAgent+" in:") + "\n" + m.input.View() + "\n" + helpStyle.Render("enter: next   esc: cancel") + "\n")
 	}
 	if m.err != nil {
 		b.WriteString("\n" + m.err.Error() + "\n")
@@ -622,7 +636,7 @@ const agentsSession = "aox-agents"
 
 var launchKeys = map[string]string{"l": state.Claude, "o": state.Codex}
 
-func launch(agent, dir string) tea.Cmd {
+func launch(agent, dir, name string) tea.Cmd {
 	return func() tea.Msg {
 		path, err := expandHome(dir)
 		if err != nil {
@@ -640,6 +654,11 @@ func launch(agent, dir string) tea.Cmd {
 		pane, err := tmux.NewWindow(agentsSession, path, command)
 		if err != nil {
 			return errMsg{err}
+		}
+		if name != "" {
+			if err := tmux.SetName(pane, strings.ReplaceAll(name, "\t", " ")); err != nil {
+				return errMsg{err}
+			}
 		}
 		if err := state.SaveLastDir(dir); err != nil {
 			return errMsg{err}
