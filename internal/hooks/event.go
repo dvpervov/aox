@@ -42,8 +42,10 @@ var waitingNotifications = []string{
 	"quota_auto_resume_stale",
 }
 
+const idleNotification = "idle_prompt"
+
 var matchers = map[string]string{
-	NotificationEvent: strings.Join(waitingNotifications, "|"),
+	NotificationEvent: strings.Join(append(slices.Clone(waitingNotifications), idleNotification), "|"),
 }
 
 type hookInput struct {
@@ -58,6 +60,8 @@ func (in hookInput) state() (state.State, bool) {
 	switch {
 	case in.Event == "PreToolUse" && in.ToolName == "AskUserQuestion":
 		return state.Waiting, true
+	case in.Event == NotificationEvent && in.NotificationType == idleNotification:
+		return state.Idle, true
 	case in.Event == NotificationEvent:
 		return state.Waiting, slices.Contains(waitingNotifications, in.NotificationType)
 	}
@@ -110,6 +114,10 @@ func handle(r io.Reader, agent string) error {
 	s, err := associate(in, pane, agent, own)
 	if err != nil || s == nil {
 		return err
+	}
+	// Claude fires no Stop after an Esc interrupt; idle_prompt is the only later signal, so it may end WORKING but must not override WAITING.
+	if in.Event == NotificationEvent && in.NotificationType == idleNotification && s.State != state.Working {
+		return nil
 	}
 	s.State = next
 	if in.Event == "UserPromptSubmit" && s.Prompt == "" {
