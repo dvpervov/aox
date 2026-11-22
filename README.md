@@ -11,7 +11,7 @@ See all your coding agents — Claude Code and Codex — running in tmux, in one
       ?         claude    botlab:5.0
 ```
 
-You keep starting and using agents exactly as before; aox only watches and navigates.
+You can keep starting and using agents exactly as before — aox picks them up automatically.
 
 ## Requirements
 
@@ -97,7 +97,7 @@ This removes only aox's hooks. aox's state lives in `~/.local/state/aox/` and ca
 
 ## aox vs GUI agent IDEs
 
-GUI agent IDEs (Cursor-like) bundle agents, editor, diffs and git into one application. aox follows the Unix way: it does one thing — watching and navigating agent sessions — and composes with the tools you already use. tmux runs the sessions, the agents' own CLIs do the work, and your editor and git handle the code.
+GUI agent IDEs (Cursor-like) bundle agents, editor, diffs and git into one application. aox follows the Unix way: it does one thing — managing coding-agent sessions: monitoring, launching and navigating them — and composes with the tools you already use. tmux runs the sessions, the agents' own CLIs do the work, and your editor and git handle the code.
 
 | | aox | GUI agent IDEs |
 |---|---|---|
