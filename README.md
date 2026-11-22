@@ -72,7 +72,7 @@ From any tmux pane, **`prefix a`** (e.g. `ctrl+b a`) brings you back to aox. aox
 
 ### Starting agents
 
-`n`, then `l` (Claude) or `o` (Codex), asks for a directory (tab completes; the last one used is remembered), then an optional name. The agent starts in a new window of the tmux session `aox-agents` and you're taken there. When the agent exits, you return to aox.
+`n`, then `l` (Claude) or `o` (Codex), asks for a directory (tab completes; the last one used is remembered), then an optional title. The agent starts in a new window of the tmux session `aox-agents` and you're taken there. When the agent exits, you return to aox.
 
 ### Renaming
 

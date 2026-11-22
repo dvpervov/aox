@@ -496,7 +496,7 @@ func (m model) View() string {
 	}
 	switch {
 	case m.launchNaming:
-		b.WriteString("\n" + helpStyle.Render("name (optional):") + "\n" + m.input.View() + "\n")
+		b.WriteString("\n" + helpStyle.Render("title (optional):") + "\n" + m.input.View() + "\n")
 	case m.launchAgent != "":
 		b.WriteString("\n" + helpStyle.Render("new "+m.launchAgent+" in:") + "\n" + m.input.View() + "\n")
 	}
