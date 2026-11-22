@@ -127,6 +127,9 @@ func SwitchTo(pane string) error {
 
 func BindSwitch(table, key, pane string) (restore func(), err error) {
 	prev := binding(table, key)
+	if isSwitchBinding(prev) {
+		prev = ""
+	}
 	if err := exec.Command("tmux", append([]string{"bind-key", "-T", table, key}, switchArgs(pane, `\;`)...)...).Run(); err != nil {
 		return nil, err
 	}
@@ -167,6 +170,10 @@ func Prefix() string {
 		return ""
 	}
 	return strings.NewReplacer("C-", "ctrl+", "M-", "alt+", "S-", "shift+").Replace(strings.TrimSpace(string(out)))
+}
+
+func isSwitchBinding(b string) bool {
+	return strings.Contains(b, `switch-client -t "%`) && strings.Contains(b, "select-window -t") && strings.Contains(b, "select-pane -t")
 }
 
 func binding(table, key string) string {
@@ -237,7 +244,13 @@ func ShowAttention(extraLength int) (restore func(), err error) {
 	if err != nil {
 		return nil, err
 	}
-	ours := right + "#{" + attentionOption + "}"
+	suffix := "#{" + attentionOption + "}"
+	if strings.HasSuffix(right, suffix) {
+		right = strings.TrimSuffix(right, suffix)
+		n -= extraLength
+		length = strconv.Itoa(n)
+	}
+	ours := right + suffix
 	oursLength := strconv.Itoa(n + extraLength)
 	if _, err := run("set-option", "-g", "status-right", ours); err != nil {
 		return nil, err
