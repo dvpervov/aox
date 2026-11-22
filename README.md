@@ -5,7 +5,7 @@ See all your coding agents — Claude Code and Codex — running in tmux, in one
 Built for terminal-first developers: it lives in tmux next to your agents, editor and shell, and never asks you to leave the keyboard.
 
 ```
-      status    agent     pane               title
+      Status    Agent     Pane               Title
 ──────────────────────────────────────────────────────────────
   > ● WAITING   claude    botlab:1.1         fix the parser crash
       WORKING   codex     api:0.0            add pagination to /users

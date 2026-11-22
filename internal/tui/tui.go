@@ -466,7 +466,7 @@ func (m model) View() string {
 	if m.showPreview() {
 		listWidth = m.width * listPercent / 100
 	}
-	b.WriteString("      " + pad(m.columnTitle("s", "status"), statusWidth) + columns(m.columnTitle("a", "agent"), m.columnTitle("p", "pane"), m.columnTitle("t", "title")) + "\n")
+	b.WriteString("      " + pad(m.columnTitle("s", "Status"), statusWidth) + columns(m.columnTitle("a", "Agent"), m.columnTitle("p", "Pane"), m.columnTitle("t", "Title")) + "\n")
 	b.WriteString(dividerStyle.Render(strings.Repeat("─", listWidth)) + "\n")
 	if len(m.rows) == 0 {
 		b.WriteString("No agent sessions\n")
