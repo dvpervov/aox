@@ -221,3 +221,51 @@ func SwitchToSession(name, command string) error {
 	}
 	return exec.Command("tmux", "switch-client", "-t", "="+name).Run()
 }
+
+const attentionOption = "@aox_attention"
+
+func ShowAttention(extraLength int) (restore func(), err error) {
+	right, err := run("show-options", "-gv", "status-right")
+	if err != nil {
+		return nil, err
+	}
+	length, err := run("show-options", "-gv", "status-right-length")
+	if err != nil {
+		return nil, err
+	}
+	n, err := strconv.Atoi(length)
+	if err != nil {
+		return nil, err
+	}
+	ours := right + "#{" + attentionOption + "}"
+	oursLength := strconv.Itoa(n + extraLength)
+	if _, err := run("set-option", "-g", "status-right", ours); err != nil {
+		return nil, err
+	}
+	if _, err := run("set-option", "-g", "status-right-length", oursLength); err != nil {
+		return nil, err
+	}
+	return func() {
+		run("set-option", "-gu", attentionOption)
+		if cur, _ := run("show-options", "-gv", "status-right"); cur == ours {
+			run("set-option", "-g", "status-right", right)
+		}
+		if cur, _ := run("show-options", "-gv", "status-right-length"); cur == oursLength {
+			run("set-option", "-g", "status-right-length", length)
+		}
+	}, nil
+}
+
+func SetAttention(text string) error {
+	if _, err := run("set-option", "-g", attentionOption, text); err != nil {
+		return err
+	}
+	clients, err := run("list-clients", "-F", "#{client_tty}")
+	if err != nil {
+		return err
+	}
+	for _, tty := range strings.Fields(clients) {
+		run("refresh-client", "-S", "-t", tty)
+	}
+	return nil
+}

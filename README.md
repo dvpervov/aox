@@ -70,6 +70,8 @@ The title is the session's first prompt, or a name you give it. On wide terminal
 
 From any tmux pane, **`prefix a`** (e.g. `ctrl+b a`) brings you back to aox. aox sets this binding while it runs and restores the previous one when it quits; your tmux config is not changed.
 
+While aox runs, the tmux status bar shows **`● N waiting`** whenever sessions need you, so you notice from any pane.
+
 ### Starting agents
 
 `n`, then `l` (Claude) or `o` (Codex), asks for a directory (tab completes; the last one used is remembered), then an optional title. The agent starts in a new window of the tmux session `aox-agents` and you're taken there. When the agent exits, you return to aox.

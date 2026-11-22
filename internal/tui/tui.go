@@ -81,6 +81,7 @@ type model struct {
 	launchDir    string
 	launchNaming bool
 	pendingPane  string
+	attention    string
 	sortKey      string
 	sortDesc     bool
 	input        textinput.Model
@@ -141,6 +142,11 @@ func Run() error {
 			}
 			defer restore()
 		}
+		restore, err := tmux.ShowAttention(attentionLength)
+		if err != nil {
+			return err
+		}
+		defer restore()
 	}
 	var returnHint string
 	if prefix := tmux.Prefix(); prefix != "" && os.Getenv("TMUX_PANE") != "" {
@@ -306,6 +312,11 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		selected := m.selectedPane()
 		m.rows = msg
+		var setAttention tea.Cmd
+		if text := attentionText(m.rows); text != m.attention {
+			m.attention = text
+			setAttention = tmuxCmd(func() error { return tmux.SetAttention(text) })
+		}
 		m.sortRows()
 		m.cursor = max(0, min(m.cursor, len(m.rows)-1))
 		m.selectPane(selected)
@@ -316,6 +327,7 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.err = nil
+		return m, setAttention
 	case launchedMsg:
 		m.pendingPane = msg.pane
 		return m, load
@@ -732,4 +744,19 @@ func dirSuggestions(value string) []string {
 		suggestions = append(suggestions, dir+name+"/")
 	}
 	return suggestions
+}
+
+const attentionLength = 16
+
+func attentionText(rows []row) string {
+	n := 0
+	for _, r := range rows {
+		if r.state() == state.Waiting {
+			n++
+		}
+	}
+	if n == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" #[fg=red,bold]● %d waiting#[default]", n)
 }
