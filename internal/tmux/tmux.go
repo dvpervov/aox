@@ -1,6 +1,7 @@
 package tmux
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -110,8 +111,18 @@ func switchArgs(pane, sep string) []string {
 	}
 }
 
+func run(args ...string) (string, error) {
+	out, err := exec.Command("tmux", args...).Output()
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
+		err = errors.New("tmux: " + strings.TrimSpace(string(exitErr.Stderr)))
+	}
+	return strings.TrimSpace(string(out)), err
+}
+
 func SwitchTo(pane string) error {
-	return exec.Command("tmux", switchArgs(pane, ";")...).Run()
+	_, err := run(switchArgs(pane, ";")...)
+	return err
 }
 
 func BindSwitch(table, key, pane string) (restore func(), err error) {
@@ -132,6 +143,22 @@ func BindSwitch(table, key, pane string) (restore func(), err error) {
 		cmd.Stdin = strings.NewReader(prev)
 		cmd.Run()
 	}, nil
+}
+
+func NewWindow(session, dir, command string) (string, error) {
+	args := []string{"new-window", "-t", "=" + session + ":"}
+	if exec.Command("tmux", "has-session", "-t", "="+session).Run() != nil {
+		args = []string{"new-session", "-d", "-s", session}
+	}
+	args = append(args, "-c", dir, "-P", "-F", "#{pane_id}", command)
+	pane, err := run(args...)
+	if err != nil {
+		return "", err
+	}
+	if _, err := run("set-option", "-t", "="+session+":", "detach-on-destroy", "off"); err != nil {
+		return "", err
+	}
+	return pane, nil
 }
 
 func Prefix() string {
@@ -164,14 +191,21 @@ func Capture(pane string) (string, error) {
 }
 
 func SetName(pane, name string) error {
+	args := []string{"set-option", "-p", "-t", pane, "@aox_name", name}
 	if name == "" {
-		return exec.Command("tmux", "set-option", "-p", "-u", "-t", pane, "@aox_name").Run()
+		args = []string{"set-option", "-p", "-u", "-t", pane, "@aox_name"}
 	}
-	return exec.Command("tmux", "set-option", "-p", "-t", pane, "@aox_name", name).Run()
+	_, err := run(args...)
+	return err
 }
 
 func SwitchLast() error {
-	return exec.Command("tmux", "switch-client", "-l").Run()
+	last, err := run("display-message", "-p", "#{client_last_session}")
+	if err != nil || last == "" || exec.Command("tmux", "has-session", "-t", "="+last).Run() != nil {
+		return nil
+	}
+	_, err = run("switch-client", "-l")
+	return err
 }
 
 func SessionOf(pane string) (string, error) {

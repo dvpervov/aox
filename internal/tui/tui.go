@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sort"
 	"strings"
 	"syscall"
@@ -73,6 +74,9 @@ type model struct {
 	renameGhost bool
 	labeling    bool
 	sorting     bool
+	choosing    bool
+	showHelp    bool
+	launchAgent string
 	sortKey     string
 	sortDesc    bool
 	input       textinput.Model
@@ -135,7 +139,7 @@ func Run() error {
 	}
 	var returnHint string
 	if prefix := tmux.Prefix(); prefix != "" && os.Getenv("TMUX_PANE") != "" {
-		returnHint = "\n" + prefix + " a: open aox from any pane"
+		returnHint = prefix + " a: open aox from any pane\n"
 	}
 	p := tea.NewProgram(model{input: textinput.New(), returnHint: returnHint}, tea.WithAltScreen())
 	hup := make(chan os.Signal, 1)
@@ -305,6 +309,9 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.renamePane != "" {
 			return m.updateRename(msg)
 		}
+		if m.launchAgent != "" {
+			return m.updateLaunch(msg)
+		}
 		return m.updateList(msg)
 	}
 	return m, nil
@@ -340,7 +347,34 @@ func (m model) updateRename(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m model) updateLaunch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		agent := m.launchAgent
+		m.launchAgent = ""
+		return m, launch(agent, strings.TrimSpace(m.input.Value()))
+	case "esc":
+		m.launchAgent = ""
+		return m, nil
+	}
+	var cmd tea.Cmd
+	m.input, cmd = m.input.Update(msg)
+	return m, cmd
+}
+
 func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.choosing {
+		m.choosing = false
+		agent, ok := launchKeys[msg.String()]
+		if !ok {
+			return m, nil
+		}
+		m.launchAgent = agent
+		m.input.Placeholder = ""
+		m.input.SetValue(state.LastDir())
+		m.input.CursorEnd()
+		return m, m.input.Focus()
+	}
 	if m.labeling {
 		m.labeling = false
 		if i := strings.Index(rowLabels, msg.String()); len(msg.String()) == 1 && i >= 0 && i < len(m.rows) {
@@ -364,6 +398,10 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "s":
 		m.sorting = true
+	case "n":
+		m.choosing = true
+	case "h":
+		m.showHelp = !m.showHelp
 	case "g":
 		m.labeling = len(m.rows) > 0
 	case "q", "ctrl+c":
@@ -424,10 +462,13 @@ func (m model) View() string {
 	if m.renamePane != "" {
 		b.WriteString("\n" + m.input.View() + "\n" + helpStyle.Render("enter: save   esc: cancel") + "\n")
 	}
+	if m.launchAgent != "" {
+		b.WriteString("\n" + helpStyle.Render("new "+m.launchAgent+" in:") + "\n" + m.input.View() + "\n" + helpStyle.Render("enter: start   esc: cancel") + "\n")
+	}
 	if m.err != nil {
 		b.WriteString("\n" + m.err.Error() + "\n")
 	}
-	footer := strings.Split(helpStyle.Render(m.helpLine()+m.returnHint), "\n")
+	footer := strings.Split(helpStyle.Render(m.helpLine()), "\n")
 	left := strings.Split(strings.TrimSuffix(b.String(), "\n"), "\n")
 	if m.height == 0 {
 		return strings.Join(append(append(left, ""), footer...), "\n")
@@ -549,8 +590,58 @@ func (m model) columnTitle(key, name string) string {
 }
 
 func (m model) helpLine() string {
+	if m.choosing {
+		return "new:   l: claude   o: codex"
+	}
 	if m.sorting {
 		return "sort by:   s: status   a: agent   p: pane   t: title"
 	}
-	return "enter: jump   g: go to line   s: sort   esc: last session   r: rename   q: quit"
+	if !m.showHelp {
+		return "h: help"
+	}
+	return m.returnHint + "enter: jump   g: go to line   s: sort   esc: last session\nn: start new agent   r: rename   q: quit\nh: hide help"
+}
+
+const agentsSession = "aox-agents"
+
+var launchKeys = map[string]string{"l": state.Claude, "o": state.Codex}
+
+func launch(agent, dir string) tea.Cmd {
+	return func() tea.Msg {
+		path, err := expandHome(dir)
+		if err != nil {
+			return errMsg{err}
+		}
+		if fi, err := os.Stat(path); err != nil || !fi.IsDir() {
+			return errMsg{fmt.Errorf("not a directory: %s", dir)}
+		}
+		command := agent
+		if self := os.Getenv("TMUX_PANE"); self != "" {
+			// Job control gives the agent its own process group, so tmux reports it as the pane command.
+			command = "set -m; " + agent + `; [ "$(tmux display-message -p '#{session_attached}')" -gt 0 ] && tmux switch-client -t ` + self +
+				` \; select-window -t ` + self + ` \; select-pane -t ` + self
+		}
+		pane, err := tmux.NewWindow(agentsSession, path, command)
+		if err != nil {
+			return errMsg{err}
+		}
+		if err := state.SaveLastDir(dir); err != nil {
+			return errMsg{err}
+		}
+		if err := tmux.SwitchTo(pane); err != nil {
+			return errMsg{err}
+		}
+		return load()
+	}
+}
+
+func expandHome(dir string) (string, error) {
+	if dir != "~" && !strings.HasPrefix(dir, "~/") {
+		return dir, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, dir[1:]), nil
 }

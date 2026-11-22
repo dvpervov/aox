@@ -52,6 +52,34 @@ func Dir() (string, error) {
 	return dir, os.MkdirAll(dir, 0o700)
 }
 
+func lastDirPath() (string, error) {
+	dir, err := Dir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(filepath.Dir(dir), "last-dir"), nil
+}
+
+func LastDir() string {
+	p, err := lastDirPath()
+	if err != nil {
+		return "~"
+	}
+	data, err := os.ReadFile(p)
+	if dir := strings.TrimSpace(string(data)); err == nil && dir != "" {
+		return dir
+	}
+	return "~"
+}
+
+func SaveLastDir(dir string) error {
+	p, err := lastDirPath()
+	if err != nil {
+		return err
+	}
+	return WriteFile(p, []byte(dir+"\n"), 0o600)
+}
+
 func path(id string) (string, error) {
 	if id == "" || strings.HasPrefix(id, ".") || strings.ContainsAny(id, `/\`) {
 		return "", fmt.Errorf("invalid session id %q", id)

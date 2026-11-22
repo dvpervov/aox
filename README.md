@@ -26,7 +26,9 @@ aox hooks uninstall codex
 
 After installing Codex hooks, open Codex in tmux and review and trust the aox hooks with `/hooks`. The installer uses `$CODEX_HOME/hooks.json` when `CODEX_HOME` is set. If your Codex version uses the shared app-server daemon, launch with `codex --no-daemon` to get hook-based status and prompt titles. The shared daemon can supply the wrong pane to hooks, so aox only accepts Codex events launched from the reported pane. Without hook state, aox reads Codex's terminal title activity markers and shows `UNKNOWN` until it sees a recognizable status. When there's no saved session title, aox displays the Codex terminal title with activity markers removed. See the [Codex hooks documentation](https://learn.chatgpt.com/docs/hooks) and [upstream pane attribution issue](https://github.com/openai/codex/issues/48500).
 
-In the TUI: `j`/`k` or arrows to move, `enter` to jump to the session's pane, `esc` to go back to the previous tmux session, `r` to rename, `q` to quit.
+In the TUI: `j`/`k` or arrows to move, `g` then a row label to go to that row, `s` then a column letter to sort (repeat to reverse), `enter` to jump to the session's pane, `n` then `l` (Claude) or `o` (Codex) to start a new agent, `esc` to go back to the previous tmux session, `r` to rename, `q` to quit.
+
+New agents start in their own window in the tmux session `aox-agents` (created on first use), in a directory you confirm; aox remembers the last one used.
 
 While the TUI runs, `prefix a` jumps back to it from any tmux pane. The binding is set on the running tmux server when aox starts and removed when it quits; no tmux config changes are needed.
 
