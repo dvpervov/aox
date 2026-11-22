@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/dvpervov/aox/internal/state"
@@ -32,10 +33,36 @@ var transitions = map[string]state.State{
 	"Interrupt":         state.Idle,
 }
 
+const NotificationEvent = "Notification"
+
+var waitingNotifications = []string{
+	"permission_prompt",
+	"elicitation_dialog",
+	"elicitation_url_dialog",
+	"quota_auto_resume_stale",
+}
+
+var matchers = map[string]string{
+	NotificationEvent: strings.Join(waitingNotifications, "|"),
+}
+
 type hookInput struct {
-	SessionID string `json:"session_id"`
-	Event     string `json:"hook_event_name"`
-	Prompt    string `json:"prompt"`
+	SessionID        string `json:"session_id"`
+	Event            string `json:"hook_event_name"`
+	Prompt           string `json:"prompt"`
+	ToolName         string `json:"tool_name"`
+	NotificationType string `json:"notification_type"`
+}
+
+func (in hookInput) state() (state.State, bool) {
+	switch {
+	case in.Event == "PreToolUse" && in.ToolName == "AskUserQuestion":
+		return state.Waiting, true
+	case in.Event == NotificationEvent:
+		return state.Waiting, slices.Contains(waitingNotifications, in.NotificationType)
+	}
+	next, ok := transitions[in.Event]
+	return next, ok
 }
 
 func HandleEvent(r io.Reader, agent string) error {
@@ -76,7 +103,7 @@ func handle(r io.Reader, agent string) error {
 		}
 		return state.Remove(own.ID)
 	}
-	next, ok := transitions[in.Event]
+	next, ok := in.state()
 	if !ok {
 		return nil
 	}

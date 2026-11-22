@@ -26,9 +26,13 @@ func Install(path, agent string, events []string) error {
 			if !ok && hooks[event] != nil {
 				return fmt.Errorf("hooks.%s is not an array", event)
 			}
-			hooks[event] = append(groups, map[string]any{
+			group := map[string]any{
 				"hooks": []any{map[string]any{"type": "command", "command": command}},
-			})
+			}
+			if matcher, ok := matchers[event]; ok {
+				group["matcher"] = matcher
+			}
+			hooks[event] = append(groups, group)
 		}
 		return nil
 	})

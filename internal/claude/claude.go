@@ -2,6 +2,7 @@ package claude
 
 import (
 	"io"
+	"slices"
 
 	"github.com/dvpervov/aox/internal/hooks"
 	"github.com/dvpervov/aox/internal/state"
@@ -16,7 +17,7 @@ func InstallHooks() error {
 	if err != nil {
 		return err
 	}
-	return hooks.Install(path, state.Claude, hooks.SessionEvents)
+	return hooks.Install(path, state.Claude, append(slices.Clone(hooks.SessionEvents), hooks.NotificationEvent))
 }
 
 func UninstallHooks() error {
