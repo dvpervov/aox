@@ -366,6 +366,7 @@ func (m model) updateLaunch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if !m.launchNaming {
 			m.launchNaming = true
 			m.launchDir = strings.TrimSpace(m.input.Value())
+			m.input.SetSuggestions(nil)
 			m.input.ShowSuggestions = false
 			m.input.SetValue("")
 			return m, nil
@@ -447,6 +448,7 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.renamePane = m.rows[m.cursor].pane.ID
 			m.input.Placeholder = m.rows[m.cursor].title()
 			m.input.SetValue("")
+			m.input.SetSuggestions(nil)
 			m.input.ShowSuggestions = false
 			m.renameGhost = m.input.Placeholder != ""
 			return m, m.input.Focus()
@@ -487,18 +489,22 @@ func (m model) View() string {
 			line.Render(columns(r.pane.Command, r.pane.Location(), r.title())) + "\n")
 	}
 	if m.renamePane != "" {
-		b.WriteString("\n" + m.input.View() + "\n" + helpStyle.Render("enter: save   esc: cancel") + "\n")
+		b.WriteString("\n" + m.input.View() + "\n")
 	}
 	switch {
 	case m.launchNaming:
-		b.WriteString("\n" + helpStyle.Render("name (optional):") + "\n" + m.input.View() + "\n" + helpStyle.Render("enter: start   esc: cancel") + "\n")
+		b.WriteString("\n" + helpStyle.Render("name (optional):") + "\n" + m.input.View() + "\n")
 	case m.launchAgent != "":
-		b.WriteString("\n" + helpStyle.Render("new "+m.launchAgent+" in:") + "\n" + m.input.View() + "\n" + helpStyle.Render("enter: next   esc: cancel") + "\n")
+		b.WriteString("\n" + helpStyle.Render("new "+m.launchAgent+" in:") + "\n" + m.input.View() + "\n")
 	}
 	if m.err != nil {
 		b.WriteString("\n" + m.err.Error() + "\n")
 	}
-	footer := strings.Split(helpStyle.Render(m.helpLine()), "\n")
+	help := m.helpLine()
+	if hint := m.inputHint(); hint != "" {
+		help = hint + "\n" + help
+	}
+	footer := strings.Split(helpStyle.Render(help), "\n")
 	left := strings.Split(strings.TrimSuffix(b.String(), "\n"), "\n")
 	if m.height == 0 {
 		return strings.Join(append(append(left, ""), footer...), "\n")
@@ -617,6 +623,18 @@ func (m model) columnTitle(key, name string) string {
 		return labelStyle.Render(name[:1]) + helpStyle.Render(name[1:])
 	}
 	return helpStyle.Render(name)
+}
+
+func (m model) inputHint() string {
+	switch {
+	case m.renamePane != "":
+		return "enter: save   esc: cancel"
+	case m.launchNaming:
+		return "enter: start   esc: cancel"
+	case m.launchAgent != "":
+		return "enter: next   esc: cancel"
+	}
+	return ""
 }
 
 func (m model) helpLine() string {
