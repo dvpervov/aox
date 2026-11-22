@@ -635,7 +635,7 @@ func (m model) columnTitle(key, name string) string {
 		name += " ↓"
 	}
 	if m.sorting {
-		return labelStyle.Render(name[:1]) + helpStyle.Render(name[1:])
+		return labelStyle.Render(strings.ToLower(name[:1])) + helpStyle.Render(name[1:])
 	}
 	return helpStyle.Render(name)
 }
