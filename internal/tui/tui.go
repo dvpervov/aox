@@ -58,6 +58,7 @@ type (
 	previewTickMsg struct{}
 	rowsMsg        []row
 	errMsg         struct{ err error }
+	launchedMsg    struct{ pane string }
 	previewMsg     struct {
 		pane  string
 		lines []string
@@ -77,6 +78,7 @@ type model struct {
 	choosing    bool
 	showHelp    bool
 	launchAgent string
+	pendingPane string
 	sortKey     string
 	sortDesc    bool
 	input       textinput.Model
@@ -302,7 +304,16 @@ func (m model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.sortRows()
 		m.cursor = max(0, min(m.cursor, len(m.rows)-1))
 		m.selectPane(selected)
+		for _, r := range m.rows {
+			if r.pane.ID == m.pendingPane {
+				m.selectPane(m.pendingPane)
+				m.pendingPane = ""
+			}
+		}
 		m.err = nil
+	case launchedMsg:
+		m.pendingPane = msg.pane
+		return m, load
 	case errMsg:
 		m.err = msg.err
 	case tea.KeyMsg:
@@ -359,10 +370,12 @@ func (m model) updateLaunch(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	var cmd tea.Cmd
 	m.input, cmd = m.input.Update(msg)
+	m.input.SetSuggestions(dirSuggestions(m.input.Value()))
 	return m, cmd
 }
 
 func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	m.pendingPane = ""
 	if m.choosing {
 		m.choosing = false
 		agent, ok := launchKeys[msg.String()]
@@ -373,6 +386,8 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.input.Placeholder = ""
 		m.input.SetValue(state.LastDir())
 		m.input.CursorEnd()
+		m.input.ShowSuggestions = true
+		m.input.SetSuggestions(dirSuggestions(m.input.Value()))
 		return m, m.input.Focus()
 	}
 	if m.labeling {
@@ -421,6 +436,7 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.renamePane = m.rows[m.cursor].pane.ID
 			m.input.Placeholder = m.rows[m.cursor].title()
 			m.input.SetValue("")
+			m.input.ShowSuggestions = false
 			m.renameGhost = m.input.Placeholder != ""
 			return m, m.input.Focus()
 		}
@@ -631,7 +647,7 @@ func launch(agent, dir string) tea.Cmd {
 		if err := tmux.SwitchTo(pane); err != nil {
 			return errMsg{err}
 		}
-		return load()
+		return launchedMsg{pane}
 	}
 }
 
@@ -644,4 +660,34 @@ func expandHome(dir string) (string, error) {
 		return "", err
 	}
 	return filepath.Join(home, dir[1:]), nil
+}
+
+func dirSuggestions(value string) []string {
+	if value == "~" {
+		return []string{"~/"}
+	}
+	dir, base := value[:strings.LastIndex(value, "/")+1], value[strings.LastIndex(value, "/")+1:]
+	path, err := expandHome(dir)
+	if err != nil {
+		return nil
+	}
+	if path == "" {
+		path = "."
+	}
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return nil
+	}
+	var suggestions []string
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasPrefix(name, base) || strings.HasPrefix(name, ".") && !strings.HasPrefix(base, ".") {
+			continue
+		}
+		if fi, err := os.Stat(filepath.Join(path, name)); err != nil || !fi.IsDir() {
+			continue
+		}
+		suggestions = append(suggestions, dir+name+"/")
+	}
+	return suggestions
 }
