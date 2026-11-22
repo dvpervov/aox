@@ -41,44 +41,25 @@ The hooks point to the aox binary by its full path. If you move or reinstall aox
 
 ## Use
 
-Run `aox` from anywhere. It opens in its own tmux session named `aox` (inside tmux it switches you there; outside tmux it starts or attaches tmux).
+Run `aox` from anywhere. It opens in its own tmux session named `aox` (inside tmux it switches you there; outside tmux it starts or attaches tmux). Press `h` in aox for keys, and see `aox --help` for commands.
 
 Agents appear automatically, with their status:
 
 | Status | Meaning |
 |---|---|
-| `WAITING` (red, ●) | needs your input — e.g. a permission prompt |
+| `WAITING` (red, ●) | needs your input — e.g. a permission prompt or a question |
 | `WORKING` | busy with your request |
 | `IDLE` | finished its turn |
 | `?` | not enough information yet |
 
-The title is the session's first prompt, or a name you give it. On wide terminals (100+ columns), the right side shows a live preview of the selected pane.
+What you can do:
 
-### Keys
-
-| Key | Action |
-|---|---|
-| `j` / `k`, arrows | move |
-| `g` then a label | go to a row (labels appear after `g`) |
-| `s` then `s`/`a`/`p`/`t` | sort by status, agent, pane or title (repeat to reverse) |
-| `enter` | jump to the session's pane |
-| `esc` | go back to the tmux session you came from |
-| `n` then `l` / `o` | start a new Claude / Codex agent |
-| `r` | rename the session |
-| `h` | show/hide help |
-| `q` | quit |
-
-From any tmux pane, **`prefix a`** (e.g. `ctrl+b a`) brings you back to aox. aox sets this binding while it runs and restores the previous one when it quits; your tmux config is not changed.
-
-While aox runs, the tmux status bar shows **`● N waiting`** whenever sessions need you, so you notice from any pane.
-
-### Starting agents
-
-`n`, then `l` (Claude) or `o` (Codex), asks for a directory (tab completes; the last one used is remembered), then an optional title. The agent starts in a new window of the tmux session `aox-agents` and you're taken there. When the agent exits, you return to aox.
-
-### Renaming
-
-`r` opens the name input with the current name in gray: type to replace it, `tab` or arrows to edit it, `enter` on an empty input to clear the name. Names stay with the tmux pane until it closes.
+- **Jump** to any session's pane, and come back to aox from anywhere with **`prefix a`** (e.g. `ctrl+b a`) — set while aox runs, your tmux config untouched.
+- **Notice** sessions that need you: the tmux status bar shows **`● N waiting`** from any pane.
+- **Preview** the selected session live on wide terminals (100+ columns).
+- **Sort** by status, agent, pane or title, and go to any row with a couple of keys.
+- **Start** a new Claude or Codex agent in a directory of your choice; it opens in the tmux session `aox-agents`, and you return to aox when it exits.
+- **Rename** sessions; a title is the first prompt unless you give it a name, and names stay with the tmux pane.
 
 ## Codex notes
 

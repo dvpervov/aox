@@ -23,6 +23,9 @@ func run(args []string) error {
 	switch strings.Join(args, " ") {
 	case "":
 		return runTUI()
+	case "-h", "--help":
+		fmt.Print(usage)
+		return nil
 	case "event claude":
 		return claude.HandleEvent(os.Stdin)
 	case "hooks install claude":
@@ -36,8 +39,18 @@ func run(args []string) error {
 	case "hooks uninstall codex":
 		return codex.UninstallHooks()
 	}
-	return errors.New("usage: aox [event <claude|codex> | hooks <install|uninstall> <claude|codex>]")
+	return errors.New("unknown command; see aox --help")
 }
+
+const usage = `aox — manage coding-agent sessions in tmux
+
+Usage:
+  aox                          open the TUI
+  aox hooks install <agent>    register hooks (claude, codex)
+  aox hooks uninstall <agent>  remove aox hooks
+
+Keys: press h in the TUI.
+`
 
 const tuiSession = "aox"
 
