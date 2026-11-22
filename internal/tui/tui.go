@@ -112,6 +112,7 @@ var (
 	stateStyles = map[state.State]lipgloss.Style{
 		state.Working: lipgloss.NewStyle().Foreground(lipgloss.Color("3")),
 		state.Waiting: lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true),
+		state.Paused:  lipgloss.NewStyle().Foreground(lipgloss.Color("5")),
 		state.Idle:    lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
 		state.Unknown: lipgloss.NewStyle().Faint(true),
 	}
@@ -594,7 +595,7 @@ func (m model) rowLabel(i int) string {
 	return " "
 }
 
-var statusRank = map[state.State]int{state.Waiting: 0, state.Working: 1, state.Idle: 2, state.Unknown: 3}
+var statusRank = map[state.State]int{state.Waiting: 0, state.Working: 1, state.Paused: 2, state.Idle: 3, state.Unknown: 4}
 
 func (r row) sortValue(key string) string {
 	switch key {

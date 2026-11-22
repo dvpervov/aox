@@ -33,7 +33,14 @@ var transitions = map[string]state.State{
 	"Interrupt":         state.Idle,
 }
 
-const NotificationEvent = "Notification"
+const (
+	NotificationEvent = "Notification"
+	StopFailureEvent  = "StopFailure"
+	rateLimitError    = "rate_limit"
+	idleNotification  = "idle_prompt"
+	quotaResumed      = "quota_auto_resume_fired"
+	quotaDisabled     = "quota_auto_resume_disabled"
+)
 
 var waitingNotifications = []string{
 	"permission_prompt",
@@ -42,10 +49,9 @@ var waitingNotifications = []string{
 	"quota_auto_resume_stale",
 }
 
-const idleNotification = "idle_prompt"
-
 var matchers = map[string]string{
-	NotificationEvent: strings.Join(append(slices.Clone(waitingNotifications), idleNotification), "|"),
+	NotificationEvent: strings.Join(append(slices.Clone(waitingNotifications), idleNotification, quotaResumed, quotaDisabled), "|"),
+	StopFailureEvent:  rateLimitError,
 }
 
 type hookInput struct {
@@ -54,13 +60,18 @@ type hookInput struct {
 	Prompt           string `json:"prompt"`
 	ToolName         string `json:"tool_name"`
 	NotificationType string `json:"notification_type"`
+	Error            string `json:"error"`
 }
 
 func (in hookInput) state() (state.State, bool) {
 	switch {
 	case in.Event == "PreToolUse" && in.ToolName == "AskUserQuestion":
 		return state.Waiting, true
-	case in.Event == NotificationEvent && in.NotificationType == idleNotification:
+	case in.Event == StopFailureEvent:
+		return state.Paused, in.Error == "" || in.Error == rateLimitError
+	case in.Event == NotificationEvent && in.NotificationType == quotaResumed:
+		return state.Working, true
+	case in.Event == NotificationEvent && (in.NotificationType == idleNotification || in.NotificationType == quotaDisabled):
 		return state.Idle, true
 	case in.Event == NotificationEvent:
 		return state.Waiting, slices.Contains(waitingNotifications, in.NotificationType)
@@ -115,9 +126,18 @@ func handle(r io.Reader, agent string) error {
 	if err != nil || s == nil {
 		return err
 	}
-	// Claude fires no Stop after an Esc interrupt; idle_prompt is the only later signal, so it may end WORKING but must not override WAITING.
-	if in.Event == NotificationEvent && in.NotificationType == idleNotification && s.State != state.Working {
-		return nil
+	if in.Event == NotificationEvent {
+		switch in.NotificationType {
+		case idleNotification:
+			// Claude can report idle after an Esc interrupt or a canceled retry.
+			if s.State != state.Working && s.State != state.Paused {
+				return nil
+			}
+		case quotaDisabled:
+			if s.State != state.Paused {
+				return nil
+			}
+		}
 	}
 	s.State = next
 	if in.Event == "UserPromptSubmit" && s.Prompt == "" {

@@ -17,7 +17,7 @@ func InstallHooks() error {
 	if err != nil {
 		return err
 	}
-	return hooks.Install(path, state.Claude, append(slices.Clone(hooks.SessionEvents), "PostToolUse", hooks.NotificationEvent))
+	return hooks.Install(path, state.Claude, append(slices.Clone(hooks.SessionEvents), "PostToolUse", hooks.NotificationEvent, hooks.StopFailureEvent))
 }
 
 func UninstallHooks() error {

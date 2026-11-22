@@ -18,6 +18,7 @@ type State string
 const (
 	Working State = "WORKING"
 	Waiting State = "WAITING"
+	Paused  State = "PAUSED"
 	Idle    State = "IDLE"
 	Unknown State = "UNKNOWN"
 )
