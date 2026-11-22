@@ -95,6 +95,24 @@ aox hooks uninstall codex
 
 This removes only aox's hooks. aox's state lives in `~/.local/state/aox/` and can be deleted.
 
+## aox vs GUI agent IDEs
+
+GUI agent IDEs (Cursor-like) bundle agents, editor, diffs and git into one application. aox follows the Unix way: it does one thing — watching and navigating agent sessions — and composes with the tools you already use. tmux runs the sessions, the agents' own CLIs do the work, and your editor and git handle the code.
+
+| | aox | GUI agent IDEs |
+|---|---|---|
+| Overview of all agent sessions and their status | Yes | Yes |
+| Highlights sessions waiting for you | Yes | Yes |
+| Live preview, quick switching, renaming | Yes | Yes |
+| Start new agents | Yes | Yes |
+| Picks up agents you started yourself, anywhere in tmux | Yes | Only its own sessions |
+| Uses the official Claude Code and Codex CLIs, unchanged | Yes | Agents run inside the IDE |
+| Works over SSH, in any terminal | Yes | Desktop app |
+| Footprint | One small binary, no daemon | Full desktop application |
+| Editor, diff review, git | Your own (Vim/Neovim, git, …) | Built in |
+
+Choose aox if you live in the terminal and want to keep your editor, your git workflow and the agents' own CLIs, while still seeing at a glance which agent needs you.
+
 ## How it works
 
 Claude Code and Codex call `aox event <agent>` on lifecycle events (prompt submitted, tool use, permission request, turn finished, session start/end). aox records the latest state per session in small JSON files under `~/.local/state/aox/sessions/`, and the TUI matches them to tmux panes. There is no daemon or server; tmux and the agents remain the source of truth.
