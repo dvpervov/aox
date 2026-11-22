@@ -114,11 +114,10 @@ var (
 		state.Idle:    lipgloss.NewStyle().Foreground(lipgloss.Color("2")),
 		state.Unknown: lipgloss.NewStyle().Faint(true),
 	}
-	helpStyle        = lipgloss.NewStyle().Faint(true)
-	placeholderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	suggestionStyle  = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "250", Dark: "238"})
-	labelStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("#F780E2")).Bold(true)
-	dividerStyle     = lipgloss.NewStyle().Faint(true)
+	helpStyle    = lipgloss.NewStyle().Faint(true)
+	ghostStyle   = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "250", Dark: "238"})
+	labelStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#F780E2")).Bold(true)
+	dividerStyle = lipgloss.NewStyle().Faint(true)
 )
 
 func Run() error {
@@ -147,7 +146,9 @@ func Run() error {
 	if prefix := tmux.Prefix(); prefix != "" && os.Getenv("TMUX_PANE") != "" {
 		returnHint = prefix + " a: open aox from any pane\n"
 	}
-	p := tea.NewProgram(model{input: textinput.New(), returnHint: returnHint}, tea.WithAltScreen())
+	input := textinput.New()
+	input.PlaceholderStyle = ghostStyle
+	p := tea.NewProgram(model{input: input, returnHint: returnHint}, tea.WithAltScreen())
 	hup := make(chan os.Signal, 1)
 	signal.Notify(hup, syscall.SIGHUP)
 	go func() {
@@ -401,7 +402,6 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.input.SetValue(state.LastDir())
 		m.input.CursorEnd()
 		m.input.ShowSuggestions = true
-		m.input.PlaceholderStyle = suggestionStyle
 		m.input.SetSuggestions(dirSuggestions(m.input.Value()))
 		return m, m.input.Focus()
 	}
@@ -450,7 +450,6 @@ func (m model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.rows) > 0 {
 			m.renamePane = m.rows[m.cursor].pane.ID
 			m.input.Placeholder = m.rows[m.cursor].title()
-			m.input.PlaceholderStyle = placeholderStyle
 			m.input.SetValue("")
 			m.input.SetSuggestions(nil)
 			m.input.ShowSuggestions = false
