@@ -1,41 +1,100 @@
 # aox
 
-A minimal terminal manager for coding-agent sessions (Claude Code, Codex) running in tmux.
+See all your coding agents — Claude Code and Codex — running in tmux, in one place: what each is working on, which ones are busy, and which are waiting for you. Jump to any of them with one key.
 
-## Problem
+```
+      status    agent     pane               title
+──────────────────────────────────────────────────────────────
+  > ● WAITING   claude    botlab:1.1         fix the parser crash
+      WORKING   codex     api:0.0            add pagination to /users
+      IDLE      claude    7:0.0              write release notes
+      ?         claude    botlab:5.0
+```
 
-With several agents running across tmux windows and panes, finding out which sessions are active, what each is doing, and which need your input means switching between windows by hand. aox solves observability and navigation across agent sessions — not agent execution.
+You keep starting and using agents exactly as before; aox only watches and navigates.
 
-## Goals
+## Requirements
 
-- **Discovery** — automatically find agent sessions running inside tmux.
-- **Overview** — show all sessions, their tasks, and statuses in one TUI.
-- **Attention detection** — highlight sessions waiting for your input.
-- **Navigation** — jump from the TUI straight to the session's tmux pane.
-- **Non-intrusive** — keep using Claude Code and Codex normally; no special launcher or registration.
+- **tmux** 3.0 or newer — agents must run inside tmux panes (tested with 3.4).
+- **Claude Code** and/or **Codex CLI** (Codex with hooks support; tested with 0.171).
+- **Go** 1.24 or newer to build.
+- Linux (other Unix systems may work but are untested).
 
-## Usage
+## Install
 
 ```sh
-aox hooks install claude    # once; register Claude Code hooks in ~/.claude/settings.json
-aox hooks install codex     # once; register Codex hooks in ~/.codex/hooks.json
-aox                         # open the TUI; it always runs in tmux session "aox" (created on first use)
-aox hooks uninstall claude  # remove aox hooks
+go install github.com/dvpervov/aox@latest
+```
+
+Then register the hooks for the agents you use (once):
+
+```sh
+aox hooks install claude    # adds hooks to ~/.claude/settings.json
+aox hooks install codex     # adds hooks to ~/.codex/hooks.json
+```
+
+For Codex, open Codex once and trust the new hooks with `/hooks` — Codex skips hooks until you do.
+
+The hooks point to the aox binary by its full path. If you move or reinstall aox elsewhere, run `aox hooks install` again.
+
+## Use
+
+Run `aox` from anywhere. It opens in its own tmux session named `aox` (inside tmux it switches you there; outside tmux it starts or attaches tmux).
+
+Agents appear automatically, with their status:
+
+| Status | Meaning |
+|---|---|
+| `WAITING` (red, ●) | needs your input — e.g. a permission prompt |
+| `WORKING` | busy with your request |
+| `IDLE` | finished its turn |
+| `?` | not enough information yet |
+
+The title is the session's first prompt, or a name you give it. On wide terminals (100+ columns), the right side shows a live preview of the selected pane.
+
+### Keys
+
+| Key | Action |
+|---|---|
+| `j` / `k`, arrows | move |
+| `g` then a label | go to a row (labels appear after `g`) |
+| `s` then `s`/`a`/`p`/`t` | sort by status, agent, pane or title (repeat to reverse) |
+| `enter` | jump to the session's pane |
+| `esc` | go back to the tmux session you came from |
+| `n` then `l` / `o` | start a new Claude / Codex agent |
+| `r` | rename the session |
+| `h` | show/hide help |
+| `q` | quit |
+
+From any tmux pane, **`prefix a`** (e.g. `ctrl+b a`) brings you back to aox. aox sets this binding while it runs and restores the previous one when it quits; your tmux config is not changed.
+
+### Starting agents
+
+`n`, then `l` (Claude) or `o` (Codex), asks for a directory (tab completes; the last one used is remembered). The agent starts in a new window of the tmux session `aox-agents` and you're taken there. When the agent exits, you return to aox.
+
+### Renaming
+
+`r` opens the name input with the current name in gray: type to replace it, `tab` or arrows to edit it, `enter` on an empty input to clear the name. Names stay with the tmux pane until it closes.
+
+## Codex notes
+
+Codex normally runs sessions through a shared background daemon, and its hooks can't tell which tmux pane they belong to. aox ignores those events, so such sessions get their status from Codex's terminal title instead and may show `?` until Codex starts working. For full status and prompt titles, start Codex with:
+
+```sh
+codex --no-daemon
+```
+
+aox uses `$CODEX_HOME/hooks.json` when `CODEX_HOME` is set, and `$CLAUDE_CONFIG_DIR/settings.json` for Claude when `CLAUDE_CONFIG_DIR` is set.
+
+## Uninstall
+
+```sh
+aox hooks uninstall claude
 aox hooks uninstall codex
 ```
 
-After installing Codex hooks, open Codex in tmux and review and trust the aox hooks with `/hooks`. The installer uses `$CODEX_HOME/hooks.json` when `CODEX_HOME` is set. If your Codex version uses the shared app-server daemon, launch with `codex --no-daemon` to get hook-based status and prompt titles. The shared daemon can supply the wrong pane to hooks, so aox only accepts Codex events launched from the reported pane. Without hook state, aox reads Codex's terminal title activity markers and shows `UNKNOWN` until it sees a recognizable status. When there's no saved session title, aox displays the Codex terminal title with activity markers removed. See the [Codex hooks documentation](https://learn.chatgpt.com/docs/hooks) and [upstream pane attribution issue](https://github.com/openai/codex/issues/48500).
+This removes only aox's hooks. aox's state lives in `~/.local/state/aox/` and can be deleted.
 
-In the TUI: `j`/`k` or arrows to move, `g` then a row label to go to that row, `s` then a column letter to sort (repeat to reverse), `enter` to jump to the session's pane, `n` then `l` (Claude) or `o` (Codex) to start a new agent, `esc` to go back to the previous tmux session, `r` to rename, `q` to quit.
+## How it works
 
-New agents start in their own window in the tmux session `aox-agents` (created on first use), in a directory you confirm; aox remembers the last one used.
-
-While the TUI runs, `prefix a` jumps back to it from any tmux pane. The binding is set on the running tmux server when aox starts and removed when it quits; no tmux config changes are needed.
-
-## Principles
-
-- tmux owns sessions, panes, and navigation; agent CLIs own reasoning, history, and tools; aox only observes and navigates.
-- Native interfaces over scraping: tmux commands and agent hooks.
-- No daemon, server, or database — small local state files only.
-- Conservative status: prefer `UNKNOWN` over unsupported conclusions.
-- No speculative features.
+Claude Code and Codex call `aox event <agent>` on lifecycle events (prompt submitted, tool use, permission request, turn finished, session start/end). aox records the latest state per session in small JSON files under `~/.local/state/aox/sessions/`, and the TUI matches them to tmux panes. There is no daemon or server; tmux and the agents remain the source of truth.
