@@ -129,7 +129,7 @@ func handle(r io.Reader, agent string) error {
 	if in.Event == NotificationEvent {
 		switch in.NotificationType {
 		case idleNotification:
-			// Claude can report idle after an Esc interrupt or a canceled retry.
+			// idle_prompt doesn't follow an Esc interrupt (verified), but may end WORKING/PAUSED in other cases; never override WAITING.
 			if s.State != state.Working && s.State != state.Paused {
 				return nil
 			}
